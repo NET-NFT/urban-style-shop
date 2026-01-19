@@ -105,16 +105,16 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
     ]
 
 from telegram import InputMediaPhoto
-    if product.get("photo_url"):
-        try:
-            await query.edit_message_media(
-                media=InputMediaPhoto(media=product["photo_url"], caption=caption, parse_mode="Markdown"),
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        except Exception:
-            await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
+if product.get("photo_url"):
+    try:
+        await query.edit_message_media(
+            media=InputMediaPhoto(media=product["photo_url"], caption=caption, parse_mode="Markdown"),
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    except Exception:
         await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+else:
+    await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
 def back_kb():
     return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]])
