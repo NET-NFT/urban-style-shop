@@ -173,31 +173,43 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
     )
     await update.message.reply_text("🎉 Спасибо за заказ! Менеджер свяжется с вами.")
 
-# === Запуск ===
-if __name__ == "__main__":
-    app = Application.builder().token(BOT_TOKEN).build()
+python
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, PreCheckoutQueryHandler, MessageHandler, filters
+from flask import Flask, request
+import os
+import logging
+import asyncio
+
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
+PORT = int(os.environ.get("PORT", 10000))
+
+# === Telegram Application ===
+application = Application.builder().token(BOT_TOKEN).build()
 
 # === Регистрация обработчиков ===
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CallbackQueryHandler(button_handler))
-app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
-app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(button_handler))
+application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
+application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
-from flask import Flask
-app = Flask(__name__)
+# === Flask-приложение ===
+flask_app = Flask(__name__)
+
+@flask_app.route(f"/{BOT_TOKEN}", methods=["POST"])
+def webhook():
+    update = request.get_json(force=True)
+    asyncio.run(application.process_update(update))
+    return "ok"
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=PORT)
-
-# Запуск
-if WEBHOOK_URL:
-    # Устанавливаем вебхук АСИНХРОННО
-    import asyncio
-    async def setup():
-        await app.initialize()
-        await app.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-        await app.start()
-        logger.info(f"Webhook set to {WEBHOOK_URL}/{BOT_TOKEN}")
-    asyncio.run(setup())
-else:
-    app.run_polling()
+    if WEBHOOK_URL:
+        async def setup():
+            await application.initialize()
+            await application.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+            await application.start()
+            logging.info(f"Webhook set to {WEBHOOK_URL}/{BOT_TOKEN}")
+        asyncio.run(setup())
+        flask_app.run(host="0.0.0.0", port=PORT)
+    else:
+        application.run_polling()
