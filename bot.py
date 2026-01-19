@@ -196,19 +196,19 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 
 if __name__ == "__main__":
-application = Application.builder().token(BOT_TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(button_handler))
-application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
-application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(button_handler))
+    application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
-PORT = int(os.environ.get("PORT", 8443))
-application.run_webhook(
-    listen="0.0.0.0",
-    port=PORT,
-    url_path=BOT_TOKEN,
-    webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
-)
+    PORT = int(os.environ.get("PORT", 8443))
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=BOT_TOKEN,
+        webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
+    )
 
 # === Flask-приложение ===
 flask_app = Flask(__name__)
