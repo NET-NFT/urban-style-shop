@@ -184,7 +184,7 @@ app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
 app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
 if __name__ == "__main__":
-app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=PORT)
 
 # Запуск
 if WEBHOOK_URL:
