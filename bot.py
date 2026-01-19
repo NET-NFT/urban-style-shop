@@ -21,7 +21,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://urban-style-shop.onrender.com")
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
-logger = logging.getLogger(_name_)
+logger = logging.getLogger(__name__)
 
 user_carts = {}
 
