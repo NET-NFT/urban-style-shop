@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "name": "Худи Oversize",
+    "category": "clothing",
+    "price_rub": 3490,
+    "description": "Утеплённое худи свободного кроя. Материал: 80% хлопок, 20% полиэстер.",
+    "photo_url": "https://i.ibb.co/your-hoodie-photo.jpg"
+  },
+  {
+    "id": 2,
+    "name": "Кроссовки Urban",
+    "category": "shoes",
+    "price_rub": 4990,
+    "description": "Лёгкие кроссовки для города. Подошва — резина.",
+    "photo_url": "https://i.ibb.co/your-sneakers-photo.jpg"
+  }
+]
