@@ -194,7 +194,13 @@ import asyncio
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
-PORT = int(os.environ.get("PORT", 10000))
+PORT = int(os.environ.get("PORT", 8443))
+       application.run_webhook(
+           listen="0.0.0.0",
+           port=PORT,
+           url_path=BOT_TOKEN,
+           webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
+       )
 
 # === Telegram Application ===
 application = Application.builder().token(BOT_TOKEN).build()
