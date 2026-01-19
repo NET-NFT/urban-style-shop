@@ -12,6 +12,17 @@ from telegram.ext import (
     filters
 )
 
+from telegram.ext import Application, CommandHandler
+
+async def start(update, context):
+    await update.message.reply_text("Привет! Я бот.")
+
+application = Application.builder().token("ТВОЙ_ТОКЕН").build()
+application.add_handler(CommandHandler("start", start))
+
+application.run_polling()
+
+
 # === Настройки ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
