@@ -11,7 +11,6 @@ from telegram.ext import (
     PreCheckoutQueryHandler,
     filters
 )
-from flask import Flask, request
 
 # === Настройки ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -24,29 +23,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# === Глобальная корзина (в продакшене — БД!) ===
 user_carts = {}
 
-# === Загрузка товаров ===
 with open("products.json", "r", encoding="utf-8") as f:
     PRODUCTS = json.load(f)
-
-# === Создаём Application ДО Flask ===
-bot_app = Application.builder().token(BOT_TOKEN).build()
-
-# === Flask ===
-app_flask = Flask(__name__)
-
-@app_flask.route(f"/{BOT_TOKEN}", methods=["POST"])
-def telegram_webhook():
-    try:
-        json_data = request.get_json(force=True)
-        update = Update.de_json(json_data, bot_app.bot)
-        bot_app.update_queue.put_nowait(update)
-        return "OK"
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        return "ERROR", 500
 
 # === Обработчики ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -199,11 +179,15 @@ bot_app.add_handler(CallbackQueryHandler(button_handler))
 bot_app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
 bot_app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
-# === Запуск ===
-if __name__ == "__main__":
+# Запуск
     if WEBHOOK_URL:
-        logger.info(f"Setting webhook to {WEBHOOK_URL}/{BOT_TOKEN}")
-        bot_app.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-
-    port = int(os.environ.get("PORT", 10000))
-    app_flask.run(host="0.0.0.0", port=port)
+        # Устанавливаем вебхук АСИНХРОННО
+        import asyncio
+        async def setup():
+            await app.initialize()
+            await app.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+            await app.start()
+            logger.info(f"Webhook set to {WEBHOOK_URL}/{BOT_TOKEN}")
+        asyncio.run(setup())
+    else:
+        app.run_polling()
