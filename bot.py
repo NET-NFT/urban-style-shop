@@ -183,6 +183,9 @@ app.add_handler(CallbackQueryHandler(button_handler))
 app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
 app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
+from flask import Flask
+app = Flask(__name__)
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT)
 
