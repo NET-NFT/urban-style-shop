@@ -21,12 +21,16 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://urban-style-shop.onrender.com")
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(_name_)
 
 user_carts = {}
 
-with open("products.json", "r", encoding="utf-8") as f:
-    PRODUCTS = json.load(f)
+try:
+    with open("products.json", "r", encoding="utf-8") as f:
+        PRODUCTS = json.load(f)
+except Exception as e:
+    logger.error(f"Ошибка загрузки products.json: {e}")
+    PRODUCTS = []
 
 # === Обработчики ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -96,11 +100,22 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
         [InlineKeyboardButton("➕ В корзину", callback_data=f"add_{prod_id}")],
         [InlineKeyboardButton("⬅️ Назад", callback_data=f"back_cat_{product['category']}")]
     ]
+    elif data.startswith("back_cat_"):
+      category = data.split("_")[2]
+      await show_category(update, context, category)
 
-    if product.get("photo_url"):
-        await query.edit_message_caption(caption=caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
+from telegram import InputMediaPhoto
+
+if product.get("photo_url"):
+    try:
+        await query.edit_message_media(
+            media=InputMediaPhoto(media=product["photo_url"], caption=caption, parse_mode="Markdown"),
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    except Exception:
         await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+else:
+    await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
 def back_kb():
     return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]])
