@@ -180,14 +180,14 @@ bot_app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
 bot_app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
 # Запуск
-    if WEBHOOK_URL:
-        # Устанавливаем вебхук АСИНХРОННО
-        import asyncio
-        async def setup():
-            await app.initialize()
-            await app.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-            await app.start()
-            logger.info(f"Webhook set to {WEBHOOK_URL}/{BOT_TOKEN}")
-        asyncio.run(setup())
-    else:
-        app.run_polling()
+if WEBHOOK_URL:
+    # Устанавливаем вебхук АСИНХРОННО
+    import asyncio
+    async def setup():
+        await app.initialize()
+        await app.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+        await app.start()
+        logger.info(f"Webhook set to {WEBHOOK_URL}/{BOT_TOKEN}")
+    asyncio.run(setup())
+else:
+    app.run_polling()
