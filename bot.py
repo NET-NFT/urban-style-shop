@@ -173,11 +173,15 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
     )
     await update.message.reply_text("🎉 Спасибо за заказ! Менеджер свяжется с вами.")
 
+# === Запуск ===
+if __name__ == "__main__":
+    app = Application.builder().token(BOT_TOKEN).build()
+
 # === Регистрация обработчиков ===
-bot_app.add_handler(CommandHandler("start", start))
-bot_app.add_handler(CallbackQueryHandler(button_handler))
-bot_app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
-bot_app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CallbackQueryHandler(button_handler))
+app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
+app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
 # Запуск
 if WEBHOOK_URL:
