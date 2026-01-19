@@ -76,6 +76,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_cart(update, context)
     elif data == "pay_rub":
         await send_rub_invoice(update, context)
+    elif data.startswith("back_cat_"):
+        category = data.split("_")[2]
+        await show_category(update, context, category)
 
 async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
     query = update.callback_query
@@ -100,9 +103,6 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
         [InlineKeyboardButton("➕ В корзину", callback_data=f"add_{prod_id}")],
         [InlineKeyboardButton("⬅️ Назад", callback_data=f"back_cat_{product['category']}")]
     ]
-    elif data.startswith("back_cat_"):
-      category = data.split("_")[2]
-      await show_category(update, context, category)
 
 from telegram import InputMediaPhoto
 
