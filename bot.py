@@ -1,7 +1,7 @@
 import json
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, InputMediaPhoto
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -186,7 +186,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
     )
     await update.message.reply_text("🎉 Спасибо за заказ! Менеджер свяжется с вами.")
 
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, PreCheckoutQueryHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, PreCheckoutQueryHandler, MessageHandler, InputMediaPhoto, filters
 from flask import Flask, request
 import os
 import logging
