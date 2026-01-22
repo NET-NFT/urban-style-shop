@@ -210,6 +210,106 @@ if __name__ == "__main__":
         webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
     )
 
+import telebot
+from telebot import types
+
+# Предполагается, что ваш токен уже где-то определен:
+# TOKEN = 'ВАШ_ТОКЕН'
+# bot = telebot.TeleBot(TOKEN)
+
+# --- Логика Игры Крестики-Нолики ---
+
+# Словарь для хранения состояний игр разных пользователей
+# Ключ: chat_id, Значение: {'board': list, 'current_player': str, 'message_id': int}
+games = {}
+
+def create_game_board():
+    """Создает пустое игровое поле 3x3"""
+    return [" " for _ in range(9)]
+
+def check_win(board, player):
+    """Проверяет, выиграл ли игрок"""
+    win_conditions = [
+        (0, 1, 2), (3, 4, 5), (6, 7, 8), # Горизонтали
+        (0, 3, 6), (1, 4, 7), (2, 5, 8), # Вертикали
+        (0, 4, 8), (2, 4, 6)             # Диагонали
+    ]
+    for condition in win_conditions:
+        if all(board[i] == player for i in condition):
+            return True
+    return False
+
+def check_draw(board):
+    """Проверяет ничью"""
+    return " " not in board
+
+def get_game_keyboard(board):
+    """Создает InlineKeyboardMarkup из текущего состояния поля"""
+    keyboard = types.InlineKeyboardMarkup(row_width=3)
+    for i in range(9):
+        # Текст кнопки: либо X/O, либо пробел, если пусто
+        button_text = board[i] if board[i] != " " else " "
+        # callback_data содержит индекс ячейки (0-8)
+        callback_data = f"move_{i}" if board[i] == " " else "ignore"
+        keyboard.add(types.InlineKeyboardButton(button_text, callback_data=callback_data))
+    return keyboard
+
+# --- Обработчики Telegram ---
+
+@bot.message_handler(commands=['tictactoe', 'игра'])
+def start_game(message):
+    chat_id = message.chat.id
+    board = create_game_board()
+    games[chat_id] = {'board': board, 'current_player': 'X'}
+    
+    keyboard = get_game_keyboard(board)
+    msg = bot.send_message(chat_id, "Игра 'Крестики-нолики' началась! Ход игрока X:", reply_markup=keyboard)
+    games[chat_id]['message_id'] = msg.message_id # Сохраняем ID сообщения для его обновления
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('move_'))
+def callback_game(call):
+    chat_id = call.message.chat.id
+    if chat_id not in games:
+        bot.answer_callback_query(call.id, "Игра не найдена или завершена.")
+        return
+
+    game_state = games[chat_id]
+    board = game_state['board']
+    player = game_state['current_player']
+    
+    # Получаем индекс ячейки из callback_data (например, 'move_5' -> 5)
+    move_index = int(call.data.split('_')[1])
+
+    if board[move_index] == " ":
+        board[move_index] = player
+        
+        if check_win(board, player):
+            result_text = f"🎉 Игрок {player} победил! 🎉"
+            keyboard = None # Убираем кнопки после игры
+            del games[chat_id] # Удаляем игру из списка
+        elif check_draw(board):
+            result_text = "🤝 Ничья! 🤝"
+            keyboard = None
+            del games[chat_id]
+        else:
+            # Смена игрока и обновление клавиатуры
+            next_player = 'O' if player == 'X' else 'X'
+            game_state['current_player'] = next_player
+            result_text = f"Ход игрока {next_player}:"
+            keyboard = get_game_keyboard(board)
+        
+        # Обновляем сообщение (редактируем), чтобы кнопки работали
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=call.message.message_id,
+            text=result_text,
+            reply_markup=keyboard
+        )
+    else:
+        bot.answer_callback_query(call.id, "Эта ячейка уже занята! 🚫")
+
+# --- Конец логики игры ---
+
 # === Flask-приложение ===
 flask_app = Flask(__name__)
 
