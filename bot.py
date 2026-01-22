@@ -45,7 +45,8 @@ def category_menu():
         [InlineKeyboardButton("👕 Одежда", callback_data="cat_clothing")],
         [InlineKeyboardButton("👟 Обувь", callback_data="cat_shoes")],
         [InlineKeyboardButton("👜 Аксессуары", callback_data="cat_accessories")],
-        [InlineKeyboardButton("🛒 Корзина", callback_data="cart")]
+        [InlineKeyboardButton("🛒 Корзина", callback_data="cart")],
+        [InlineKeyboardButton(" Крестики-нолики", callback_data=callback_data)]
     ])
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
