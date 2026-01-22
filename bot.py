@@ -212,21 +212,15 @@ if __name__ == "__main__":
 
 import telebot
 from telebot import types
-
-# bot = telebot.TeleBot(TOKEN)
-
-# Ключ: chat_id, Значение: {'board': list, 'current_player': str, 'message_id': int}
+# bot = telebot.TeleBot(BOT_TOKEN)
 games = {}
 git add .
 git commit -m "Add Tic Tac Toe game logic"
 git push origin main
 
 def create_game_board():
-    """Создает пустое игровое поле 3x3"""
     return [" " for _ in range(9)]
-
 def check_win(board, player):
-    """Проверяет, выиграл ли игрок"""
     win_conditions = [
         (0, 1, 2), (3, 4, 5), (6, 7, 8), # Горизонтали
         (0, 3, 6), (1, 4, 7), (2, 5, 8), # Вертикали
@@ -236,7 +230,6 @@ def check_win(board, player):
         if all(board[i] == player for i in condition):
             return True
     return False
-
 def check_draw(board):
     """Проверяет ничью"""
     return " " not in board
@@ -253,13 +246,11 @@ def get_game_keyboard(board):
     return keyboard
 
 # --- Обработчики Telegram ---
-
 @bot.message_handler(commands=['tictactoe', 'игра'])
 def start_game(message):
     chat_id = message.chat.id
     board = create_game_board()
     games[chat_id] = {'board': board, 'current_player': 'X'}
-    
     keyboard = get_game_keyboard(board)
     msg = bot.send_message(chat_id, "Игра 'Крестики-нолики' началась! Ход игрока X:", reply_markup=keyboard)
     games[chat_id]['message_id'] = msg.message_id # Сохраняем ID сообщения для его обновления
