@@ -214,10 +214,6 @@ import telebot
 from telebot import types
 # bot = telebot.TeleBot(BOT_TOKEN)
 games = {}
-git add .
-git commit -m "Add Tic Tac Toe game logic"
-git push origin main
-
 def create_game_board():
     return [" " for _ in range(9)]
 def check_win(board, player):
