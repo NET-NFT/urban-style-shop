@@ -210,7 +210,6 @@ if __name__ == "__main__":
         url_path=BOT_TOKEN,
         webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
     )
-
 import telebot
 from telebot import types
 # bot = telebot.TeleBot(BOT_TOKEN)
