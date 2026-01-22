@@ -299,7 +299,7 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("tictactoe", start_ttt))
     app.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
-    app.add_handler(CallbackQueryHandler(ignore_callback, pattern="^ignore__CODE_BLOCK_2__quot;))
+    app.add_handler(CallbackQueryHandler(ignore_callback, pattern="^ignore__CODE_BLOCK_0__))
     app.run_polling()
                                          
 if __name__ == "__main__":
@@ -313,8 +313,8 @@ if __name__ == "__main__":
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     application.add_handler(CommandHandler("tictactoe", start_ttt))
     application.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
-    application.add_handler(CallbackQueryHandler(ignore_callback, pattern="^ignore__CODE_BLOCK_0__quot;))
-    application.add_handler(CallbackQueryHandler(category_callback, pattern="^(cat_|cart|ttt_game)__CODE_BLOCK_0__quot;))
+    application.add_handler(CallbackQueryHandler(ignore_callback, pattern="^ignore__CODE_BLOCK_0__))
+    application.add_handler(CallbackQueryHandler(category_callback, pattern="^(cat_|cart|ttt_game)__CODE_BLOCK_0__))
 
     PORT = int(os.environ.get("PORT", 8443))
     application.run_webhook(
