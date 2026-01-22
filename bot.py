@@ -314,7 +314,7 @@ if __name__ == "__main__":
     application.add_handler(CommandHandler("tictactoe", start_ttt))
     application.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
     application.add_handler(CallbackQueryHandler(ignore_callback, pattern=__CODE_BLOCK_0__))
-    application.add_handler(CallbackQueryHandler(category_callback, pattern="^(cat_|cart|ttt_game)__CODE_BLOCK_0__))
+    application.add_handler(CallbackQueryHandler(category_callback, pattern=(cat_|cart|ttt_game),__CODE_BLOCK_0__))
 
     PORT = int(os.environ.get("PORT", 8443))
     application.run_webhook(
