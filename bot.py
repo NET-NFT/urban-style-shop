@@ -213,15 +213,13 @@ if __name__ == "__main__":
 import telebot
 from telebot import types
 
-# Предполагается, что ваш токен уже где-то определен:
-# TOKEN = 'ВАШ_ТОКЕН'
 # bot = telebot.TeleBot(TOKEN)
 
-# --- Логика Игры Крестики-Нолики ---
-
-# Словарь для хранения состояний игр разных пользователей
 # Ключ: chat_id, Значение: {'board': list, 'current_player': str, 'message_id': int}
 games = {}
+git add .
+git commit -m "Add Tic Tac Toe game logic"
+git push origin main
 
 def create_game_board():
     """Создает пустое игровое поле 3x3"""
