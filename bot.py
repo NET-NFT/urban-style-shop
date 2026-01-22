@@ -11,6 +11,7 @@ from telegram.ext import (
     PreCheckoutQueryHandler,
     filters
 )
+import random
 
 # === Настройки ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -46,7 +47,7 @@ def category_menu():
         [InlineKeyboardButton("👟 Обувь", callback_data="cat_shoes")],
         [InlineKeyboardButton("👜 Аксессуары", callback_data="cat_accessories")],
         [InlineKeyboardButton("🛒 Корзина", callback_data="cart")],
-        [InlineKeyboardButton(" Крестики-нолики", callback_data=callback_data)]
+        [InlineKeyboardButton("🎮 Крестики-нолики", callback_data="ttt_game")]
     ])
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -187,6 +188,14 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
     )
     await update.message.reply_text("🎉 Спасибо за заказ! Менеджер свяжется с вами.")
 
+async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data = query.data
+
+    if data == "ttt_game":
+        await start_ttt(update, context)  # Запускаем игру
+        return
+
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, PreCheckoutQueryHandler, MessageHandler, filters
 from flask import Flask, request
 import os
@@ -196,12 +205,116 @@ import asyncio
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+import random
+
+# Словарь для хранения игр по chat_id
+games = {}
+
+def create_game_board():
+    return [" " for _ in range(9)]
+
+def check_win(board, player):
+    win_conditions = [
+        (0, 1, 2), (3, 4, 5), (6, 7, 8),
+        (0, 3, 6), (1, 4, 7), (2, 5, 8),
+        (0, 4, 8), (2, 4, 6)
+    ]
+    for cond in win_conditions:
+        if all(board[i] == player for i in cond):
+            return True
+    return False
+
+def check_draw(board):
+    return " " not in board
+
+def get_game_keyboard(board):
+    keyboard = []
+    for row in range(3):
+        buttons = []
+        for col in range(3):
+            idx = row * 3 + col
+            text = board[idx] if board[idx] != " " else " "
+            callback = f"move_{idx}" if board[idx] == " " else "ignore"
+            buttons.append(InlineKeyboardButton(text, callback_data=callback))
+        keyboard.append(buttons)
+    return InlineKeyboardMarkup(keyboard)
+
+def generate_promo():
+    return "WIN" + str(random.randint(1000, 9999))
+
+async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    board = create_game_board()
+    games[chat_id] = {'board': board, 'current_player': 'X'}
+    await update.message.reply_text(
+        "Игра 'Крестики-нолики' началась! Ход игрока X:",
+        reply_markup=get_game_keyboard(board)
+    )
+
+async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    chat_id = query.message.chat.id
+    if chat_id not in games:
+        await query.answer("Игра не найдена или завершена.")
+        return
+
+    game = games[chat_id]
+    board = game['board']
+    player = game['current_player']
+    move_index = int(query.data.split('_')[1])
+
+    if board[move_index] == " ":
+        board[move_index] = player
+        if check_win(board, player):
+            promo = generate_promo()
+            result_text = f"🎉 Игрок {player} победил! 🎉\n\nТвой промокод: `{promo}`\n+30 ⭐️ бонусов на счёт!"
+            del games[chat_id]
+            await query.edit_message_text(
+                text=result_text,
+                reply_markup=None,
+                parse_mode="Markdown"
+            )
+        elif check_draw(board):
+            result_text = "🤝 Ничья! 🤝"
+            del games[chat_id]
+            await query.edit_message_text(
+                text=result_text,
+                reply_markup=None
+            )
+        else:
+            next_player = 'O' if player == 'X' else 'X'
+            game['current_player'] = next_player
+            await query.edit_message_text(
+                text=f"Ход игрока {next_player}:",
+                reply_markup=get_game_keyboard(board)
+            )
+    else:
+        await query.answer("Эта ячейка уже занята! 🚫")
+
+async def ignore_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer("Недоступно!")
+
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("tictactoe", start_ttt))
+    app.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
+    app.add_handler(CallbackQueryHandler(ignore_callback, pattern="^ignore__CODE_BLOCK_2__quot;))
+    app.run_polling()
+                                         
+if __name__ == "__main__":
+    main()                                     
+
 if __name__ == "__main__":
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+    application.add_handler(CommandHandler("tictactoe", start_ttt))
+    application.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
+    application.add_handler(CallbackQueryHandler(ignore_callback, pattern="^ignore__CODE_BLOCK_0__quot;))
+    application.add_handler(CallbackQueryHandler(category_callback, pattern="^(cat_|cart|ttt_game)__CODE_BLOCK_0__quot;))
 
     PORT = int(os.environ.get("PORT", 8443))
     application.run_webhook(
@@ -210,90 +323,6 @@ if __name__ == "__main__":
         url_path=BOT_TOKEN,
         webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
     )
-import telebot
-from telebot import types
-# bot = telebot.TeleBot(BOT_TOKEN)
-games = {}
-def create_game_board():
-    return [" " for _ in range(9)]
-def check_win(board, player):
-    win_conditions = [
-        (0, 1, 2), (3, 4, 5), (6, 7, 8), # Горизонтали
-        (0, 3, 6), (1, 4, 7), (2, 5, 8), # Вертикали
-        (0, 4, 8), (2, 4, 6)             # Диагонали
-    ]
-    for condition in win_conditions:
-        if all(board[i] == player for i in condition):
-            return True
-    return False
-def check_draw(board):
-    """Проверяет ничью"""
-    return " " not in board
-
-def get_game_keyboard(board):
-    """Создает InlineKeyboardMarkup из текущего состояния поля"""
-    keyboard = types.InlineKeyboardMarkup(row_width=3)
-    for i in range(9):
-        # Текст кнопки: либо X/O, либо пробел, если пусто
-        button_text = board[i] if board[i] != " " else " "
-        # callback_data содержит индекс ячейки (0-8)
-        callback_data = f"move_{i}" if board[i] == " " else "ignore"
-        keyboard.add(types.InlineKeyboardButton(button_text, callback_data=callback_data))
-    return keyboard
-
-# --- Обработчики Telegram ---
-@bot.message_handler(commands=['tictactoe', 'игра'])
-def start_game(message):
-    chat_id = message.chat.id
-    board = create_game_board()
-    games[chat_id] = {'board': board, 'current_player': 'X'}
-    keyboard = get_game_keyboard(board)
-    msg = bot.send_message(chat_id, "Игра 'Крестики-нолики' началась! Ход игрока X:", reply_markup=keyboard)
-    games[chat_id]['message_id'] = msg.message_id # Сохраняем ID сообщения для его обновления
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith('move_'))
-def callback_game(call):
-    chat_id = call.message.chat.id
-    if chat_id not in games:
-        bot.answer_callback_query(call.id, "Игра не найдена или завершена.")
-        return
-
-    game_state = games[chat_id]
-    board = game_state['board']
-    player = game_state['current_player']
-    
-    # Получаем индекс ячейки из callback_data (например, 'move_5' -> 5)
-    move_index = int(call.data.split('_')[1])
-
-    if board[move_index] == " ":
-        board[move_index] = player
-        
-        if check_win(board, player):
-            result_text = f"🎉 Игрок {player} победил! 🎉"
-            keyboard = None # Убираем кнопки после игры
-            del games[chat_id] # Удаляем игру из списка
-        elif check_draw(board):
-            result_text = "🤝 Ничья! 🤝"
-            keyboard = None
-            del games[chat_id]
-        else:
-            # Смена игрока и обновление клавиатуры
-            next_player = 'O' if player == 'X' else 'X'
-            game_state['current_player'] = next_player
-            result_text = f"Ход игрока {next_player}:"
-            keyboard = get_game_keyboard(board)
-        
-        # Обновляем сообщение (редактируем), чтобы кнопки работали
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=call.message.message_id,
-            text=result_text,
-            reply_markup=keyboard
-        )
-    else:
-        bot.answer_callback_query(call.id, "Эта ячейка уже занята! 🚫")
-
-# --- Конец логики игры ---
 
 # === Flask-приложение ===
 flask_app = Flask(__name__)
