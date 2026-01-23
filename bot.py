@@ -80,7 +80,8 @@ def category_menu():
         [InlineKeyboardButton("👟 Обувь", callback_data="cat_shoes")],
         [InlineKeyboardButton("👜 Аксессуары", callback_data="cat_accessories")],
         [InlineKeyboardButton("🛒 Корзина", callback_data="cart")],
-        [InlineKeyboardButton("🎮 Крестики-нолики", callback_data="ttt_game")]
+        [InlineKeyboardButton("🎮 Крестики-нолики", callback_data="ttt_game")],
+        [InlineKeyboardButton("🎮 Крестики-нолики", callback_data="ttt_menu")]
     ])
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -117,6 +118,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "ttt_game":
         await query.answer()
         await start_ttt(update, context)
+    elif data == "ttt_menu":
+    await ttt_menu(update, context)
+    elif data == "ttt_vs_bot":
+    await start_ttt_vs_bot(update, context)
 
 async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
     query = update.callback_query
@@ -228,57 +233,96 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
 async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     board = create_game_board()
-    games[chat_id] = {'board': board, 'current_player': 'X'}
+    games[chat_id] = {
+        'board': board,
+        'current_player': 'X',
+        'vs_bot': True  # ← игра против бота
+    }
     await context.bot.send_message(
         chat_id=chat_id,
-        text="Игра 'Крестики-нолики' началась! Ход игрока X:",
+        text="🎮 Игра против бота!\nВы — X. Сделайте свой ход:",
         reply_markup=get_game_keyboard(board)
     )
+    
+async def ttt_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.edit_message_text(
+        "Выберите режим:",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("С ботом", callback_data="ttt_vs_bot")],
+            [InlineKeyboardButton("С другом", callback_data="ttt_vs_friend")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]
+        ])
+    )
+
+import random
 
 async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    await query.answer()
     chat_id = query.message.chat.id
+
     if chat_id not in games:
-        await query.answer("Игра не найдена или завершена.")
+        await context.bot.send_message(chat_id=chat_id, text="Игра не найдена.")
         return
 
     game = games[chat_id]
     board = game['board']
-    player = game['current_player']
-    
-    if query.data == "ignore":
-        await query.answer("Эта ячейка уже занята!")
-        return
-        
     move_index = int(query.data.split('_')[1])
 
-    if board[move_index] == " ":
-        board[move_index] = player
-        if check_win(board, player):
-            promo = generate_promo()
-            result_text = f"🎉 Игрок {player} победил! 🎉\n\nТвой промокод: `{promo}`\n+30 ⭐️ бонусов на счёт!"
+    # Проверка, что ячейка свободна
+    if board[move_index] != " ":
+        await query.answer("Эта ячейка уже занята!")
+        return
+
+    # Ход игрока (X)
+    board[move_index] = 'X'
+
+    # Проверка победы игрока
+    if check_win(board, 'X'):
+        promo = generate_promo()
+        result_text = f"🎉 Вы победили! 🎉\n\nТвой промокод: `{promo}`\n+30 ⭐️ бонусов на счёт!"
+        del games[chat_id]
+        await query.edit_message_text(
+            text=result_text,
+            reply_markup=None,
+            parse_mode="Markdown"
+        )
+        return
+
+    # Проверка ничьей
+    if check_draw(board):
+        result_text = "🤝 Ничья! 🤝"
+        del games[chat_id]
+        await query.edit_message_text(text=result_text, reply_markup=None)
+        return
+
+    # === ХОД БОТА (O) ===
+    # Находим свободные ячейки
+    empty_cells = [i for i, cell in enumerate(board) if cell == " "]
+    if empty_cells:
+        bot_move = random.choice(empty_cells)
+        board[bot_move] = 'O'
+
+        # Проверка победы бота
+        if check_win(board, 'O'):
+            result_text = "🤖 Бот победил! Попробуй ещё раз!"
             del games[chat_id]
-            await query.edit_message_text(
-                text=result_text,
-                reply_markup=None,
-                parse_mode="Markdown"
-            )
-        elif check_draw(board):
+            await query.edit_message_text(text=result_text, reply_markup=None)
+            return
+
+        # Проверка ничьей после хода бота
+        if check_draw(board):
             result_text = "🤝 Ничья! 🤝"
             del games[chat_id]
-            await query.edit_message_text(
-                text=result_text,
-                reply_markup=None
-            )
-        else:
-            next_player = 'O' if player == 'X' else 'X'
-            game['current_player'] = next_player
-            await query.edit_message_text(
-                text=f"Ход игрока {next_player}:",
-                reply_markup=get_game_keyboard(board)
-            )
-    else:
-        await query.answer("Эта ячейка уже занята! 🚫")
+            await query.edit_message_text(text=result_text, reply_markup=None)
+            return
+
+    # Обновляем доску
+    await query.edit_message_text(
+        text="Ваш ход:",
+        reply_markup=get_game_keyboard(board)
+    )
 
 # === Запуск ===
 if __name__ == "__main__":
