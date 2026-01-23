@@ -329,7 +329,7 @@ import os
    from telegram import Bot, Update
    from telegram.ext import Dispatcher, CallbackContext
 
-   TOKEN = "ТВОЙ_ТОКЕН"
+   TOKEN = "BOT_ТОКЕН"
    bot = Bot(token=TOKEN)
    dispatcher = Dispatcher(bot, None, workers=0)
 
