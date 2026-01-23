@@ -343,7 +343,7 @@ def index():
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
-return 'ok'
+    return 'ok'
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
