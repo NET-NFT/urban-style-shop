@@ -87,7 +87,6 @@ def category_menu():
         [InlineKeyboardButton("👜 Аксессуары", callback_data="cat_accessories")],
         [InlineKeyboardButton("🛒 Корзина", callback_data="cart")],
         [InlineKeyboardButton("🎮 Крестики-нолики", callback_data="ttt_menu")],
-        [InlineKeyboardButton("🎮 Крестики-нолики", callback_data="ttt_game")]
     ])
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
