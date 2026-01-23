@@ -117,16 +117,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "ttt_game":
         await query.answer()
         await start_ttt(update, context)
-        
-async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    board = create_game_board()
-    games[chat_id] = {'board': board, 'current_player': 'X'}
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text="Игра 'Крестики-нолики' началась! Ход игрока X:",
-        reply_markup=get_game_keyboard(board)
-    )
 
 async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
     query = update.callback_query
@@ -239,8 +229,9 @@ async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     board = create_game_board()
     games[chat_id] = {'board': board, 'current_player': 'X'}
-    await update.message.reply_text(
-        "Игра 'Крестики-нолики' началась! Ход игрока X:",
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="Игра 'Крестики-нолики' началась! Ход игрока X:",
         reply_markup=get_game_keyboard(board)
     )
 
