@@ -126,7 +126,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "ttt_menu":
         await ttt_menu(update, context)
     elif data == "ttt_vs_bot":
-        await start_ttt_vs_bot(update, context)
+        await start_ttt(update, context)
     elif data == "ttt_vs_friend":
         await create_ttt_game(update, context)
 
@@ -238,6 +238,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
 
 # === Обработчики игры ===
 async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Запуск игры с ботом")
     chat_id = update.effective_chat.id
     board = create_game_board()
     games[chat_id] = {
