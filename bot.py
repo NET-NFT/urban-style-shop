@@ -324,6 +324,31 @@ if __name__ == "__main__":
         webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
     )
 
+import os
+   from flask import Flask, request
+   from telegram import Bot, Update
+   from telegram.ext import Dispatcher, CallbackContext
+
+   TOKEN = "ТВОЙ_ТОКЕН"
+   bot = Bot(token=TOKEN)
+   dispatcher = Dispatcher(bot, None, workers=0)
+
+   app = Flask(__name__)
+
+   @app.route('/')
+   def index():
+       return "Бот работает!"
+
+   @app.route('/webhook', methods=['POST'])
+   def webhook():
+       update = Update.de_json(request.get_json(force=True), bot)
+       dispatcher.process_update(update)
+       return 'ok'
+
+   if __name__ == "__main__":
+       port = int(os.environ.get("PORT", 10000))
+       app.run(host="0.0.0.0", port=port)
+       
 # === Flask-приложение ===
 flask_app = Flask(__name__)
 
