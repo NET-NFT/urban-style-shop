@@ -119,9 +119,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         await start_ttt(update, context)
     elif data == "ttt_menu":
-    await ttt_menu(update, context)
+        await ttt_menu(update, context)
     elif data == "ttt_vs_bot":
-    await start_ttt_vs_bot(update, context)
+        await start_ttt_vs_bot(update, context)
 
 async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
     query = update.callback_query
