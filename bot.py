@@ -253,7 +253,9 @@ async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
 async def ttt_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("ttt_menu вызван")
     query = update.callback_query
+    await query.answer()
     await query.edit_message_text(
         "Выберите режим:",
         reply_markup=InlineKeyboardMarkup([
@@ -467,9 +469,10 @@ if __name__ == "__main__":
     # Регистрация обработчиков
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("tictactoe", start_ttt))
-    app.add_handler(CallbackQueryHandler(button_handler, pattern="^(cat_|cart|ttt_game|view_|add_|pay_rub|back_)"))
     app.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
     app.add_handler(CallbackQueryHandler(lambda u, c: u.callback_query.answer(), pattern="^ignore$"))
+    app.add_handler(CallbackQueryHandler(button_handler, pattern="^(cat_|cart|ttt_game|ttt_menu|ttt_vs_bot|ttt_vs_friend|view_|add_|pay_rub|back_)"))
+    app.add_handler(CallbackQueryHandler(ttt_menu, pattern="^ttt_menu$"))
     app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
