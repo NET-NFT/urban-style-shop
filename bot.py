@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 # === Хранение данных ===
 user_carts = {}
 games = {}  # Для крестиков-ноликов
+active_games = {}      # Игры между двумя игроками
+pending_invites = {}   # Ожидающие приглашения
 
 # === Загрузка товаров ===
 try:
@@ -68,11 +70,15 @@ def generate_promo():
 
 # === Обработчики магазина ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🛍️ Добро пожаловать в *Urban Style*!\n\nВыберите категорию:",
-        parse_mode="Markdown",
-        reply_markup=category_menu()
-    )
+    if context.args and context.args[0].startswith("ttt_"):
+        game_id = context.args[0][4:]
+        await join_ttt_game(update, context, game_id)
+    else:
+        await update.message.reply_text(
+            "🛍️ Добро пожаловать в *Urban Style*!\n\nВыберите категорию:",
+            parse_mode="Markdown",
+            reply_markup=category_menu()
+        )
 
 def category_menu():
     return InlineKeyboardMarkup([
@@ -121,6 +127,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await ttt_menu(update, context)
     elif data == "ttt_vs_bot":
         await start_ttt_vs_bot(update, context)
+    elif data == "ttt_vs_friend":
+        await create_ttt_game(update, context)
 
 async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
     query = update.callback_query
@@ -254,30 +262,104 @@ async def ttt_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
     )
 
-import random
-
 async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    chat_id = query.message.chat.id
+    user_id = update.effective_user.id
+    move_index = int(query.data.split('_')[1])
 
+    # Сначала проверяем мультиплеер
+    game_id = None
+    game = None
+    for gid, g in active_games.items():
+        if user_id in (g['player_x_id'], g['player_o_id']):
+            game_id = gid
+            game = g
+            break
+
+    if game:
+        # Мультиплеерная игра
+        if game['current_turn'] != user_id:
+            symbol = "X" if user_id == game['player_x_id'] else "O"
+            await query.answer(f"Сейчас ход противника! Вы — {symbol}.")
+            return
+
+        board = game['board']
+        if board[move_index] != " ":
+            await query.answer("Ячейка занята!")
+            return
+
+        player_symbol = "X" if user_id == game['player_x_id'] else "O"
+        board[move_index] = player_symbol
+
+        if check_win(board, player_symbol):
+            promo = generate_promo() if player_symbol == "X" else "Попробуй ещё раз!"
+            winner_name = "Вы" if user_id == game['player_x_id'] else "Ваш друг"
+            result_text = f"🎉 {winner_name} победил как {player_symbol}!\n\n"
+            if player_symbol == "X":
+                result_text += f"Твой промокод: `{promo}`\n+30 ⭐️ бонусов!"
+            
+            await context.bot.edit_message_text(
+                chat_id=game['chat_id_x'],
+                message_id=game['msg_id_x'],
+                text=result_text,
+                parse_mode="Markdown" if player_symbol == "X" else None
+            )
+            await context.bot.edit_message_text(
+                chat_id=game['chat_id_o'],
+                message_id=game['msg_id_o'],
+                text=result_text,
+                parse_mode="Markdown" if player_symbol == "X" else None
+            )
+            del active_games[game_id]
+            return
+
+        if check_draw(board):
+            await context.bot.edit_message_text(
+                chat_id=game['chat_id_x'],
+                message_id=game['msg_id_x'],
+                text="🤝 Ничья!"
+            )
+            await context.bot.edit_message_text(
+                chat_id=game['chat_id_o'],
+                message_id=game['msg_id_o'],
+                text="🤝 Ничья!"
+            )
+            del active_games[game_id]
+            return
+
+        next_player = game['player_o_id'] if user_id == game['player_x_id'] else game['player_x_id']
+        game['current_turn'] = next_player
+
+        next_symbol = "O" if player_symbol == "X" else "X"
+        await context.bot.edit_message_text(
+            chat_id=game['chat_id_x'],
+            message_id=game['msg_id_x'],
+            text=f"Ходит {'O' if user_id == game['player_x_id'] else 'X'} ({next_symbol}):",
+            reply_markup=get_game_keyboard(board)
+        )
+        await context.bot.edit_message_text(
+            chat_id=game['chat_id_o'],
+            message_id=game['msg_id_o'],
+            text=f"Ходит {'O' if user_id == game['player_x_id'] else 'X'} ({next_symbol}):",
+            reply_markup=get_game_keyboard(board)
+        )
+        return
+
+    # Если не мультиплеер — игра с ботом (старая логика)
+    chat_id = query.message.chat.id
     if chat_id not in games:
         await context.bot.send_message(chat_id=chat_id, text="Игра не найдена.")
         return
 
-    game = games[chat_id]
-    board = game['board']
-    move_index = int(query.data.split('_')[1])
-
-    # Проверка, что ячейка свободна
+    game_bot = games[chat_id]
+    board = game_bot['board']
     if board[move_index] != " ":
         await query.answer("Эта ячейка уже занята!")
         return
 
-    # Ход игрока (X)
     board[move_index] = 'X'
 
-    # Проверка победы игрока
     if check_win(board, 'X'):
         promo = generate_promo()
         result_text = f"🎉 Вы победили! 🎉\n\nТвой промокод: `{promo}`\n+30 ⭐️ бонусов на счёт!"
@@ -289,39 +371,93 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Проверка ничьей
     if check_draw(board):
         result_text = "🤝 Ничья! 🤝"
         del games[chat_id]
         await query.edit_message_text(text=result_text, reply_markup=None)
         return
 
-    # === ХОД БОТА (O) ===
-    # Находим свободные ячейки
     empty_cells = [i for i, cell in enumerate(board) if cell == " "]
     if empty_cells:
         bot_move = random.choice(empty_cells)
         board[bot_move] = 'O'
 
-        # Проверка победы бота
         if check_win(board, 'O'):
             result_text = "🤖 Бот победил! Попробуй ещё раз!"
             del games[chat_id]
             await query.edit_message_text(text=result_text, reply_markup=None)
             return
 
-        # Проверка ничьей после хода бота
         if check_draw(board):
             result_text = "🤝 Ничья! 🤝"
             del games[chat_id]
             await query.edit_message_text(text=result_text, reply_markup=None)
             return
 
-    # Обновляем доску
     await query.edit_message_text(
         text="Ваш ход:",
         reply_markup=get_game_keyboard(board)
     )
+
+import uuid
+
+async def create_ttt_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    game_id = str(uuid.uuid4())[:8]
+    
+    pending_invites[game_id] = {
+        'creator_id': user.id,
+        'creator_name': user.first_name,
+        'chat_id': update.effective_chat.id
+    }
+    
+    bot_username = context.bot.username
+    invite_link = f"https://t.me/{bot_username}?start=ttt_{game_id}"
+    
+    await update.effective_message.reply_text(
+        f"🎮 Игра создана!\n\nОтправьте эту ссылку другу:\n\n`{invite_link}`",
+        parse_mode="Markdown"
+    )
+
+async def join_ttt_game(update: Update, context: ContextTypes.DEFAULT_TYPE, game_id: str):
+    user = update.effective_user
+    chat_id = update.effective_chat.id
+
+    if game_id not in pending_invites:
+        await update.message.reply_text("❌ Игра не найдена или уже началась.")
+        return
+
+    invite = pending_invites[game_id]
+    if invite['creator_id'] == user.id:
+        await update.message.reply_text("Вы уже создали эту игру!")
+        return
+
+    board = create_game_board()
+    active_games[game_id] = {
+        'board': board,
+        'player_x_id': invite['creator_id'],
+        'player_o_id': user.id,
+        'current_turn': invite['creator_id'],
+        'chat_id_x': invite['chat_id'],
+        'chat_id_o': chat_id
+    }
+
+    del pending_invites[game_id]
+
+    keyboard = get_game_keyboard(board)
+    msg_x = await context.bot.send_message(
+        chat_id=invite['chat_id'],
+        text=f"✅ {user.first_name} присоединился!\n\nВаш ход (X):",
+        reply_markup=keyboard
+    )
+    msg_o = await context.bot.send_message(
+        chat_id=chat_id,
+        text=f"Вы играете за O.\n\nХодит {invite['creator_name']} (X)...",
+        reply_markup=keyboard
+    )
+
+    active_games[game_id]['msg_id_x'] = msg_x.message_id
+    active_games[game_id]['msg_id_o'] = msg_o.message_id
 
 # === Запуск ===
 if __name__ == "__main__":
