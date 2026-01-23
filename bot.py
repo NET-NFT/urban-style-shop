@@ -299,7 +299,7 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("tictactoe", start_ttt))
     app.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
-    app.add_handler(CallbackQueryHandler(ignore_callback, pattern=__CODE_BLOCK_0__))
+    app.add_handler(CallbackQueryHandler(ignore_callback, pattern="^ignore__CODE_BLOCK_0__quot"))
     app.run_polling()
                                          
 if __name__ == "__main__":
