@@ -325,9 +325,9 @@ if __name__ == "__main__":
     )
 
 import os
-   from flask import Flask, request
-   from telegram import Bot, Update
-   from telegram.ext import Dispatcher, CallbackContext
+from flask import Flask, request
+from telegram import Bot, Update
+from telegram.ext import Dispatcher, CallbackContext
 
    TOKEN = "BOT_ТОКЕН"
    bot = Bot(token=TOKEN)
