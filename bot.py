@@ -1,6 +1,7 @@
 import json
 import os
 import logging
+import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, InputMediaPhoto
 from telegram.ext import (
     Application,
@@ -11,21 +12,23 @@ from telegram.ext import (
     PreCheckoutQueryHandler,
     filters
 )
-import random
 
 # === Настройки ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
 PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://urban-style-shop.onrender.com")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").strip()  # Убираем пробелы
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
+# === Хранение данных ===
 user_carts = {}
+games = {}  # Для крестиков-ноликов
 
+# === Загрузка товаров ===
 try:
     with open("products.json", "r", encoding="utf-8") as f:
         PRODUCTS = json.load(f)
@@ -33,7 +36,37 @@ except Exception as e:
     logger.error(f"Ошибка загрузки products.json: {e}")
     PRODUCTS = []
 
-# === Обработчики ===
+# === Вспомогательные функции для игры ===
+def create_game_board():
+    return [" " for _ in range(9)]
+
+def check_win(board, player):
+    win_conditions = [
+        (0, 1, 2), (3, 4, 5), (6, 7, 8),
+        (0, 3, 6), (1, 4, 7), (2, 5, 8),
+        (0, 4, 8), (2, 4, 6)
+    ]
+    return any(all(board[i] == player for i in cond) for cond in win_conditions)
+
+def check_draw(board):
+    return " " not in board
+
+def get_game_keyboard(board):
+    keyboard = []
+    for row in range(3):
+        buttons = []
+        for col in range(3):
+            idx = row * 3 + col
+            text = board[idx] if board[idx] != " " else " "
+            callback = f"move_{idx}" if board[idx] == " " else "ignore"
+            buttons.append(InlineKeyboardButton(text, callback_data=callback))
+        keyboard.append(buttons)
+    return InlineKeyboardMarkup(keyboard)
+
+def generate_promo():
+    return "WIN" + str(random.randint(1000, 9999))
+
+# === Обработчики магазина ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🛍️ Добро пожаловать в *Urban Style*!\n\nВыберите категорию:",
@@ -81,6 +114,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("back_cat_"):
         category = data.split("_")[2]
         await show_category(update, context, category)
+    elif data == "ttt_game":
+        await start_ttt(update, context)
 
 async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
     query = update.callback_query
@@ -188,61 +223,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
     )
     await update.message.reply_text("🎉 Спасибо за заказ! Менеджер свяжется с вами.")
 
-async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    data = query.data
-
-    if data == "ttt_game":
-        await start_ttt(update, context)  # Запускаем игру
-        return
-
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, PreCheckoutQueryHandler, MessageHandler, filters
-from flask import Flask, request
-import os
-import logging
-import asyncio
-
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
-
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-import random
-
-# Словарь для хранения игр по chat_id
-games = {}
-
-def create_game_board():
-    return [" " for _ in range(9)]
-
-def check_win(board, player):
-    win_conditions = [
-        (0, 1, 2), (3, 4, 5), (6, 7, 8),
-        (0, 3, 6), (1, 4, 7), (2, 5, 8),
-        (0, 4, 8), (2, 4, 6)
-    ]
-    for cond in win_conditions:
-        if all(board[i] == player for i in cond):
-            return True
-    return False
-
-def check_draw(board):
-    return " " not in board
-
-def get_game_keyboard(board):
-    keyboard = []
-    for row in range(3):
-        buttons = []
-        for col in range(3):
-            idx = row * 3 + col
-            text = board[idx] if board[idx] != " " else " "
-            callback = f"move_{idx}" if board[idx] == " " else "ignore"
-            buttons.append(InlineKeyboardButton(text, callback_data=callback))
-        keyboard.append(buttons)
-    return InlineKeyboardMarkup(keyboard)
-
-def generate_promo():
-    return "WIN" + str(random.randint(1000, 9999))
-
+# === Обработчики игры ===
 async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     board = create_game_board()
@@ -262,6 +243,11 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
     game = games[chat_id]
     board = game['board']
     player = game['current_player']
+    
+    if query.data == "ignore":
+        await query.answer("Эта ячейка уже занята!")
+        return
+        
     move_index = int(query.data.split('_')[1])
 
     if board[move_index] == " ":
@@ -292,80 +278,27 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.answer("Эта ячейка уже занята! 🚫")
 
-async def ignore_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer("Недоступно!")
-
-def main():
+# === Запуск ===
+if __name__ == "__main__":
     app = Application.builder().token(BOT_TOKEN).build()
+
+    # Регистрация обработчиков
+    app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("tictactoe", start_ttt))
+    app.add_handler(CallbackQueryHandler(button_handler, pattern="^(cat_|cart|ttt_game|view_|add_|pay_rub|back_)"))
     app.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
-    app.add_handler(CallbackQueryHandler(ignore_callback, pattern="^ignore__CODE_BLOCK_0__quot"))
-    app.run_polling()
-                                         
-if __name__ == "__main__":
-    main()                                     
+    app.add_handler(CallbackQueryHandler(lambda u, c: u.callback_query.answer(), pattern="^ignore$"))
+    app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
-if __name__ == "__main__":
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
-    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
-    application.add_handler(CommandHandler("tictactoe", start_ttt))
-    application.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
-    application.add_handler(CallbackQueryHandler(ignore_callback, pattern=__CODE_BLOCK_0__))
-    application.add_handler(CallbackQueryHandler(category_callback, pattern="(cat_|cart|ttt_game)__CODE_BLOCK_0__"))
-
-    PORT = int(os.environ.get("PORT", 8443))
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=BOT_TOKEN,
-        webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
-    )
-
-import os
-from flask import Flask, request
-from telegram import Bot, Update
-from telegram.ext import Dispatcher, CallbackContext
-
-TOKEN = "BOT_ТОКЕН"
-bot = Bot(token=TOKEN)
-dispatcher = Dispatcher(bot, None, workers=0)
-
-app = Flask(__name__)
-
-@app.route('/')
-def index():
-    return "Бот работает!"
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return 'ok'
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-       
-# === Flask-приложение ===
-flask_app = Flask(__name__)
-
-@flask_app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def webhook():
-    update = request.get_json(force=True)
-    asyncio.run(application.process_update(update))
-    return "ok"
-
-if __name__ == "__main__":
+    # Запуск
     if WEBHOOK_URL:
+        import asyncio
         async def setup():
-            await application.initialize()
-            await application.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-            await application.start()
-            logging.info(f"Webhook set to {WEBHOOK_URL}/{BOT_TOKEN}")
+            await app.initialize()
+            await app.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
+            await app.start()
+            logger.info(f"Webhook set to {WEBHOOK_URL}/{BOT_TOKEN}")
         asyncio.run(setup())
-        flask_app.run(host="0.0.0.0", port=PORT)
     else:
-        application.run_polling()
+        app.run_polling()
