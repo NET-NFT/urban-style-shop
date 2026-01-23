@@ -291,14 +291,15 @@ if __name__ == "__main__":
     app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
-    # Запуск
+    # Запуск с вебхуком
+    PORT = int(os.environ.get("PORT", 10000))
     if WEBHOOK_URL:
-        import asyncio
-        async def setup():
-            await app.initialize()
-            await app.bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-            await app.start()
-            logger.info(f"Webhook set to {WEBHOOK_URL}/{BOT_TOKEN}")
-        asyncio.run(setup())
+        # Устанавливаем вебхук и запускаем сервер
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=BOT_TOKEN,
+            webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
+        )
     else:
         app.run_polling()
