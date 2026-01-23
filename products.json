@@ -5,7 +5,7 @@
     "category": "clothing",
     "price_rub": 3490,
     "description": "Утеплённое худи свободного кроя. Материал: 80% хлопок, 20% полиэстер.",
-    "photo_url": "https://i.ibb.co/your-hoodie-photo.jpg"
+    "photo_url": "https://ibb.co/Q3qS50Nh"
   },
   {
     "id": 2,
@@ -14,5 +14,13 @@
     "price_rub": 4990,
     "description": "Лёгкие кроссовки для города. Подошва — резина.",
     "photo_url": "https://i.ibb.co/your-sneakers-photo.jpg"
+  },
+  {
+    "id": 3,
+    "name": "Рюкзак City Pack",
+    "category": "accessories",
+    "price_rub": 2490,
+    "description": "Водонепроницаемый рюкзак с отделением для ноутбука до 15\".",
+    "photo_url": "https://i.ibb.co/your-backpack-photo.jpg"
   }
 ]
