@@ -103,7 +103,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "cat_accessories":
         await show_category(update, context, "accessories")
     elif data == "back_categories":
-        await query.edit_message_text("Выберите категорию:", reply_markup=category_menu())
+    if query.message.photo:
+        await query.edit_message_caption(
+            caption="Выберите категорию:",
+            reply_markup=category_menu()
+        )
+    else:
+        await query.edit_message_text(
+            "Выберите категорию:",
+            reply_markup=category_menu()
+        )
     elif data.startswith("view_"):
         prod_id = int(data.split("_")[1])
         await view_product(update, context, prod_id)
@@ -180,25 +189,38 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     query = update.callback_query
     items = [p for p in PRODUCTS if p["category"] == category]
     if not items:
+        # Всегда используем текст для "пусто"
         await query.edit_message_text("В этой категории нет товаров.", reply_markup=back_kb())
         return
 
     buttons = [[InlineKeyboardButton(p["name"], callback_data=f"view_{p['id']}")] for p in items]
     buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")])
 
-    # Определяем, было ли сообщение с фото
+    # Проверяем: есть ли у сообщения фото?
     if query.message.photo:
-        # Редактируем подпись у фото
+        # Редактируем ТОЛЬКО подпись (caption), не трогая фото
         await query.edit_message_caption(
             caption="Выберите товар:",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
     else:
-        # Редактируем текст
+        # Обычное текстовое сообщение
         await query.edit_message_text(
             "Выберите товар:",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
+try:
+    if query.message.photo:
+        await query.edit_message_caption(...)
+    else:
+        await query.edit_message_text(...)
+except BadRequest as e:
+    if "There is no text" in str(e):
+        # Фото без подписи — отправляем новое сообщение
+        await query.delete_message()
+        await update.effective_chat.send_message("Выберите товар:", reply_markup=...)
+    else:
+        raise
         
 def back_kb():
     return InlineKeyboardMarkup([
