@@ -131,30 +131,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "ttt_vs_friend":
         await create_ttt_game(update, context)
 
-async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
-    query = update.callback_query
-    items = [p for p in PRODUCTS if p["category"] == category]
-    if not items:
-        await query.edit_message_text("В этой категории нет товаров.", reply_markup=back_kb())
-        return
-
-    buttons = [[InlineKeyboardButton(p["name"], callback_data=f"view_{p['id']}")] for p in items]
-    buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")])
-
-    # Определяем, было ли сообщение с фото
-    if query.message.photo:
-        # Редактируем подпись у фото
-        await query.edit_message_caption(
-            caption="Выберите товар:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-    else:
-        # Редактируем текст
-        await query.edit_message_text(
-            "Выберите товар:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-        
 async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_id: int):
     query = update.callback_query
     product = next((p for p in PRODUCTS if p["id"] == prod_id), None)
@@ -200,6 +176,30 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
+    query = update.callback_query
+    items = [p for p in PRODUCTS if p["category"] == category]
+    if not items:
+        await query.edit_message_text("В этой категории нет товаров.", reply_markup=back_kb())
+        return
+
+    buttons = [[InlineKeyboardButton(p["name"], callback_data=f"view_{p['id']}")] for p in items]
+    buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")])
+
+    # Определяем, было ли сообщение с фото
+    if query.message.photo:
+        # Редактируем подпись у фото
+        await query.edit_message_caption(
+            caption="Выберите товар:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+    else:
+        # Редактируем текст
+        await query.edit_message_text(
+            "Выберите товар:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+        
 def back_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]
