@@ -86,6 +86,7 @@ def category_menu():
         [InlineKeyboardButton("👟 Обувь", callback_data="cat_shoes")],
         [InlineKeyboardButton("👜 Аксессуары", callback_data="cat_accessories")],
         [InlineKeyboardButton("🛒 Корзина", callback_data="cart")],
+        [],
         [InlineKeyboardButton("🎮 Крестики-нолики", callback_data="ttt_menu")]
     ])
 
