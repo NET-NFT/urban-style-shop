@@ -140,8 +140,21 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
 
     buttons = [[InlineKeyboardButton(p["name"], callback_data=f"view_{p['id']}")] for p in items]
     buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")])
-    await query.edit_message_text("Выберите товар:", reply_markup=InlineKeyboardMarkup(buttons))
 
+    # Определяем, было ли сообщение с фото
+    if query.message.photo:
+        # Редактируем подпись у фото
+        await query.edit_message_caption(
+            caption="Выберите товар:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+    else:
+        # Редактируем текст
+        await query.edit_message_text(
+            "Выберите товар:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+        
 async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_id: int):
     query = update.callback_query
     product = next((p for p in PRODUCTS if p["id"] == prod_id), None)
@@ -156,18 +169,41 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
     ]
 
     if product.get("photo_url"):
+        media = InputMediaPhoto(media=product["photo_url"], caption=caption, parse_mode="Markdown")
         try:
-            await query.edit_message_media(
-                media=InputMediaPhoto(media=product["photo_url"], caption=caption, parse_mode="Markdown"),
+            # Если уже есть фото — редактируем подпись
+            if query.message.photo:
+                await query.edit_message_caption(
+                    caption=caption,
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            else:
+                # Первый раз — отправляем фото
+                await query.edit_message_media(
+                    media=media,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+        except Exception as e:
+            logger.error(f"Ошибка при отправке фото: {e}")
+            # Резерв: текст
+            await query.edit_message_text(
+                text=caption,
+                parse_mode="Markdown",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-        except Exception:
-            await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        # Без фото — всегда текст
+        await query.edit_message_text(
+            text=caption,
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 def back_kb():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]
+    ])
 
 async def show_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
