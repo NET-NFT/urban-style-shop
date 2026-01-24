@@ -103,16 +103,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "cat_accessories":
         await show_category(update, context, "accessories")
     elif data == "back_categories":
-    if query.message.photo:
-        await query.edit_message_caption(
-            caption="Выберите категорию:",
-            reply_markup=category_menu()
-        )
-    else:
-        await query.edit_message_text(
-            "Выберите категорию:",
-            reply_markup=category_menu()
-        )
+        if query.message.photo:
+            await query.edit_message_caption(
+                caption="Выберите категорию:",
+                reply_markup=category_menu()
+            )
+        else:
+            await query.edit_message_text(
+                "Выберите категорию:",
+                reply_markup=category_menu()
+            )
     elif data.startswith("view_"):
         prod_id = int(data.split("_")[1])
         await view_product(update, context, prod_id)
