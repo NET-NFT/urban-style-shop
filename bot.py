@@ -209,18 +209,6 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
             "Выберите товар:",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
-try:
-    if query.message.photo:
-        await query.edit_message_caption(...)
-    else:
-        await query.edit_message_text(...)
-except BadRequest as e:
-    if "There is no text" in str(e):
-        # Фото без подписи — отправляем новое сообщение
-        await query.delete_message()
-        await update.effective_chat.send_message("Выберите товар:", reply_markup=...)
-    else:
-        raise
         
 def back_kb():
     return InlineKeyboardMarkup([
