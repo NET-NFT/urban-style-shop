@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 # === Хранение данных ===
 user_carts = {}
+active_promocodes = set()  # Множество активных промокодов
+user_game_count = {}       # Счётчик игр: {user_id: count}
 games = {}  # Для крестиков-ноликов
 active_games = {}      # Игры между двумя игроками
 pending_invites = {}   # Ожидающие приглашения
@@ -66,7 +68,20 @@ def get_game_keyboard(board):
     return InlineKeyboardMarkup(keyboard)
 
 def generate_promo():
-    return "WIN" + str(random.randint(1000, 9999))
+    code = "WIN" + str(random.randint(1000, 9999))
+    active_promocodes.add(code)  # Сохраняем как активный
+    return code
+
+def find_losing_move(board, player):
+    """Находит ход, который приведёт к победе игрока (бот проигрывает)"""
+    for i in range(9):
+        if board[i] == " ":
+            board[i] = player
+            if check_win(board, player):
+                board[i] = " "  # Отменяем изменение
+                return i
+            board[i] = " "
+    return None
 
 # === Обработчики магазина ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -188,6 +203,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await start_ttt(update, context)
     elif data == "ttt_vs_friend":
         await create_ttt_game(update, context)
+    elif data == "enter_promo":
+    await query.edit_message_text(
+        "Введите промокод:",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("⬅️ Отмена", callback_data="cart")]
+        ])
+    )
+    # Ожидаем текстовый ввод
+    context.user_data['awaiting_promo'] = True
 
 async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_id: int):
     query = update.callback_query
@@ -258,6 +282,63 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
             "Выберите товар:",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
+
+async def handle_promo_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get('awaiting_promo'):
+        promo = update.message.text.strip().upper()
+        if promo in active_promocodes:
+            context.user_data['promo'] = promo
+            await update.message.reply_text("✅ Промокод применён! Скидка 200 ₽ активна.")
+        else:
+            await update.message.reply_text("❌ Неверный промокод.")
+        
+        context.user_data['awaiting_promo'] = False
+        # Показываем обновлённую корзину
+        await show_cart_from_message(update, context)
+        return True
+    return False
+
+async def show_cart_from_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    cart = user_carts.get(user_id, {})
+    if not cart:
+        await update.message.reply_text("Корзина пуста.", reply_markup=back_kb())
+        return
+
+    total = 0
+    for pid, qty in cart.items():
+        product = next((p for p in PRODUCTS if p["id"] == pid), None)
+        if product:
+            total += product["price_rub"] * qty
+
+    promo = context.user_data.get('promo', None)
+    discount = 200 if promo in active_promocodes else 0
+    final_total = max(total - discount, 0)
+
+    text = "🛒 *Ваша корзина:*\n\n"
+    for pid, qty in cart.items():
+        product = next((p for p in PRODUCTS if p["id"] == pid), None)
+        if product:
+            text += f"- {product['name']} × {qty}\n"
+    
+    if discount > 0:
+        text += f"\nСкидка по промокоду: -{discount} ₽"
+    
+    text += f"\n*Итого: {final_total} ₽*"
+
+    kb = []
+    if not promo:
+        kb.append([InlineKeyboardButton("🎟️ Ввести промокод", callback_data="enter_promo")])
+    kb.extend([
+        [InlineKeyboardButton("💳 Оплатить", callback_data="pay_rub")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]
+    ])
+
+    await update.message.reply_text(
+        text, 
+        parse_mode="Markdown", 
+        reply_markup=InlineKeyboardMarkup(kb)
+    )
         
 def back_kb():
     return InlineKeyboardMarkup([
@@ -268,46 +349,45 @@ async def show_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = update.effective_user.id
     cart = user_carts.get(user_id, {})
+    promo = context.user_data.get('promo', None)
     
     if not cart:
         await query.edit_message_text("Корзина пуста.", reply_markup=back_kb())
         return
 
     total = 0
-    buttons = []
-    
     for pid, qty in cart.items():
         product = next((p for p in PRODUCTS if p["id"] == pid), None)
-        if not product:
-            continue
-            
-        total += product["price_rub"] * qty
-        
-        # Кнопки управления
-        control_buttons = [
-            InlineKeyboardButton("-", callback_data=f"dec_{pid}"),
-            InlineKeyboardButton(str(qty), callback_data="ignore"),
-            InlineKeyboardButton("+", callback_data=f"inc_{pid}")
-        ]
-        buttons.append([InlineKeyboardButton(f"{product['name']} × {qty}", callback_data=f"view_{pid}")])
-        buttons.append(control_buttons)
-        buttons.append([InlineKeyboardButton("🗑️ Удалить", callback_data=f"del_{pid}")])
-        buttons.append([])  # Пустая строка для разделения
+        if product:
+            total += product["price_rub"] * qty
 
-    # Итоговая сумма
+    # Применяем скидку
+    discount = 200 if promo in active_promocodes else 0
+    final_total = max(total - discount, 0)
+
     text = "🛒 *Ваша корзина:*\n\n"
-    text += f"\n*Итого: {total} ₽*"
+    for pid, qty in cart.items():
+        product = next((p for p in PRODUCTS if p["id"] == pid), None)
+        if product:
+            text += f"- {product['name']} × {qty}\n"
+    
+    if discount > 0:
+        text += f"\nСкидка по промокоду: -{discount} ₽"
+    
+    text += f"\n*Итого: {final_total} ₽*"
 
-    kb = [
+    kb = []
+    if not promo:
+        kb.append([InlineKeyboardButton("🎟️ Ввести промокод", callback_data="enter_promo")])
+    kb.extend([
         [InlineKeyboardButton("💳 Оплатить", callback_data="pay_rub")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]
-    ]
-    buttons.extend(kb)
+    ])
 
     await query.edit_message_text(
         text, 
         parse_mode="Markdown", 
-        reply_markup=InlineKeyboardMarkup(buttons)
+        reply_markup=InlineKeyboardMarkup(kb)
     )
 
 async def send_rub_invoice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -324,6 +404,11 @@ async def send_rub_invoice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         product = next((p for p in PRODUCTS if p["id"] == pid), None)
         if product:
             total_rub += product["price_rub"] * qty
+
+    # Применяем скидку
+    promo = context.user_data.get('promo')
+    if promo in active_promocodes:
+        total_rub = max(total_rub - 200, 0)
 
     await context.bot.send_invoice(
         chat_id=update.effective_chat.id,
@@ -500,29 +585,37 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del games[chat_id]
         await query.edit_message_text(text=result_text, reply_markup=None)
         return
-
+        
+    # === ХОД БОТА (O) ===
     empty_cells = [i for i, cell in enumerate(board) if cell == " "]
     if empty_cells:
-        bot_move = random.choice(empty_cells)
+        user_id = update.effective_user.id
+    
+    # Увеличиваем счётчик игр
+        if user_id not in user_game_count:
+            user_game_count[user_id] = 0
+        user_game_count[user_id] += 1
+    
+    # Бот проигрывает только после 5 игр
+        should_lose = user_game_count[user_id] >= 5
+    
+        if should_lose:
+            # Находим ячейку, которая приведёт к победе игрока
+            bot_move = find_losing_move(board, 'X')
+            if bot_move is None:
+                bot_move = random.choice(empty_cells)
+        else:
+            bot_move = random.choice(empty_cells)
+    
         board[bot_move] = 'O'
 
-        if check_win(board, 'O'):
+        # Проверка победы бота (только если не должен проиграть)
+        if not should_lose and check_win(board, 'O'):
             result_text = "🤖 Бот победил! Попробуй ещё раз!"
             del games[chat_id]
             await query.edit_message_text(text=result_text, reply_markup=None)
             return
-
-        if check_draw(board):
-            result_text = "🤝 Ничья! 🤝"
-            del games[chat_id]
-            await query.edit_message_text(text=result_text, reply_markup=None)
-            return
-
-    await query.edit_message_text(
-        text="Ваш ход:",
-        reply_markup=get_game_keyboard(board)
-    )
-
+           
 import uuid
 
 async def create_ttt_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -592,6 +685,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("tictactoe", start_ttt))
     app.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
     app.add_handler(CallbackQueryHandler(lambda u, c: u.callback_query.answer(), pattern="^ignore$"))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_promo_input))
     app.add_handler(CallbackQueryHandler(button_handler, pattern=r"^(inc_|dec_|del_|cat_|cart|ttt_game|ttt_menu|ttt_vs_bot|ttt_vs_friend|view_|add_|pay_rub|back_)"))
     app.add_handler(CallbackQueryHandler(ttt_menu, pattern="^ttt_menu$"))
     app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
