@@ -113,15 +113,43 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Выберите категорию:",
                 reply_markup=category_menu()
             )
+    # Управление количеством
+if data.startswith("inc_"):
+    prod_id = int(data.split("_")[1])
+    user_id = update.effective_user.id
+    if user_id in user_carts and prod_id in user_carts[user_id]:
+        user_carts[user_id][prod_id] += 1
+    await show_cart(update, context)
+
+elif data.startswith("dec_"):
+    prod_id = int(data.split("_")[1])
+    user_id = update.effective_user.id
+    if user_id in user_carts and prod_id in user_carts[user_id]:
+        user_carts[user_id][prod_id] -= 1
+        if user_carts[user_id][prod_id] <= 0:
+            del user_carts[user_id][prod_id]
+    await show_cart(update, context)
+
+elif data.startswith("del_"):
+    prod_id = int(data.split("_")[1])
+    user_id = update.effective_user.id
+    if user_id in user_carts and prod_id in user_carts[user_id]:
+        del user_carts[user_id][prod_id]
+    await show_cart(update, context)
     elif data.startswith("view_"):
         prod_id = int(data.split("_")[1])
         await view_product(update, context, prod_id)
     elif data.startswith("add_"):
         prod_id = int(data.split("_")[1])
+        user_id = update.effective_user.id
+    
         if user_id not in user_carts:
-            user_carts[user_id] = []
-        user_carts[user_id].append(prod_id)
-        await query.answer("✅ Добавлено!")
+            user_carts[user_id] = {}
+    
+        # Увеличиваем количество
+        user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
+    
+        await query.answer("✅ Товар добавлен!")
         await view_product(update, context, prod_id)
     elif data == "cart":
         await show_cart(update, context)
@@ -240,39 +268,64 @@ def back_kb():
 async def show_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = update.effective_user.id
-    cart = user_carts.get(user_id, [])
+    cart = user_carts.get(user_id, {})
+    
     if not cart:
         await query.edit_message_text("Корзина пуста.", reply_markup=back_kb())
         return
 
     total = 0
-    items = {}
-    for pid in cart:
-        p = next(p for p in PRODUCTS if p["id"] == pid)
-        key = (p["name"], p["price_rub"])
-        items[key] = items.get(key, 0) + 1
-        total += p["price_rub"]
+    buttons = []
+    
+    for pid, qty in cart.items():
+        product = next((p for p in PRODUCTS if p["id"] == pid), None)
+        if not product:
+            continue
+            
+        total += product["price_rub"] * qty
+        
+        # Кнопки управления
+        control_buttons = [
+            InlineKeyboardButton("-", callback_data=f"dec_{pid}"),
+            InlineKeyboardButton(str(qty), callback_data="ignore"),
+            InlineKeyboardButton("+", callback_data=f"inc_{pid}")
+        ]
+        buttons.append([InlineKeyboardButton(f"{product['name']} × {qty}", callback_data=f"view_{pid}")])
+        buttons.append(control_buttons)
+        buttons.append([InlineKeyboardButton("🗑️ Удалить", callback_data=f"del_{pid}")])
+        buttons.append([])  # Пустая строка для разделения
 
+    # Итоговая сумма
     text = "🛒 *Ваша корзина:*\n\n"
-    for (name, price), qty in items.items():
-        text += f"- {name} × {qty}\n"
     text += f"\n*Итого: {total} ₽*"
 
     kb = [
         [InlineKeyboardButton("💳 Оплатить", callback_data="pay_rub")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]
     ]
-    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+    buttons.extend(kb)
+
+    await query.edit_message_text(
+        text, 
+        parse_mode="Markdown", 
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
 
 async def send_rub_invoice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = update.effective_user.id
-    cart = user_carts.get(user_id, [])
+    cart = user_carts.get(user_id, {})
+    
     if not cart:
         await query.edit_message_text("Корзина пуста.")
         return
 
-    total_rub = sum(next(p["price_rub"] for p in PRODUCTS if p["id"] == pid) for pid in cart)
+    total_rub = 0
+    for pid, qty in cart.items():
+        product = next((p for p in PRODUCTS if p["id"] == pid), None)
+        if product:
+            total_rub += product["price_rub"] * qty
+
     await context.bot.send_invoice(
         chat_id=update.effective_chat.id,
         title="Заказ в Urban Style",
