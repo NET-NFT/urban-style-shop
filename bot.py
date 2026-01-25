@@ -136,15 +136,15 @@ elif data.startswith("del_"):
     if user_id in user_carts and prod_id in user_carts[user_id]:
         del user_carts[user_id][prod_id]
     await show_cart(update, context)
-    elif data.startswith("view_"):
-        prod_id = int(data.split("_")[1])
-        await view_product(update, context, prod_id)
-    elif data.startswith("add_"):
-        prod_id = int(data.split("_")[1])
-        user_id = update.effective_user.id
+elif data.startswith("view_"):
+    prod_id = int(data.split("_")[1])
+    await view_product(update, context, prod_id)
+elif data.startswith("add_"):
+    prod_id = int(data.split("_")[1])
+    user_id = update.effective_user.id
     
-        if user_id not in user_carts:
-            user_carts[user_id] = {}
+    if user_id not in user_carts:
+        user_carts[user_id] = {}
     
         # Увеличиваем количество
         user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
