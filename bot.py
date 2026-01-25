@@ -95,8 +95,32 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
     user_id = update.effective_user.id
+    
+        # Управление количеством
+    if data.startswith("inc_"):
+        prod_id = int(data.split("_")[1])
+        user_id = update.effective_user.id
+        if user_id in user_carts and prod_id in user_carts[user_id]:
+            user_carts[user_id][prod_id] += 1
+        await show_cart(update, context)
 
-    if data == "cat_clothing":
+    elif data.startswith("dec_"):
+        prod_id = int(data.split("_")[1])
+        user_id = update.effective_user.id
+        if user_id in user_carts and prod_id in user_carts[user_id]:
+            user_carts[user_id][prod_id] -= 1
+            if user_carts[user_id][prod_id] <= 0:
+                del user_carts[user_id][prod_id]
+        await show_cart(update, context)
+
+    elif data.startswith("del_"):
+        prod_id = int(data.split("_")[1])
+        user_id = update.effective_user.id
+        if user_id in user_carts and prod_id in user_carts[user_id]:
+            del user_carts[user_id][prod_id]
+        await show_cart(update, context)
+        
+    elif data == "cat_clothing":
         await show_category(update, context, "clothing")
     elif data == "cat_shoes":
         await show_category(update, context, "shoes")
@@ -113,42 +137,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Выберите категорию:",
                 reply_markup=category_menu()
             )
-    # Управление количеством
-if data.startswith("inc_"):
-    prod_id = int(data.split("_")[1])
-    user_id = update.effective_user.id
-    if user_id in user_carts and prod_id in user_carts[user_id]:
-        user_carts[user_id][prod_id] += 1
-    await show_cart(update, context)
-
-elif data.startswith("dec_"):
-    prod_id = int(data.split("_")[1])
-    user_id = update.effective_user.id
-    if user_id in user_carts and prod_id in user_carts[user_id]:
-        user_carts[user_id][prod_id] -= 1
-        if user_carts[user_id][prod_id] <= 0:
-            del user_carts[user_id][prod_id]
-    await show_cart(update, context)
-
-elif data.startswith("del_"):
-    prod_id = int(data.split("_")[1])
-    user_id = update.effective_user.id
-    if user_id in user_carts and prod_id in user_carts[user_id]:
-        del user_carts[user_id][prod_id]
-    await show_cart(update, context)
-elif data.startswith("view_"):
-    prod_id = int(data.split("_")[1])
-    await view_product(update, context, prod_id)
-elif data.startswith("add_"):
-    prod_id = int(data.split("_")[1])
-    user_id = update.effective_user.id
-    
+    elif data.startswith("view_"):
+        prod_id = int(data.split("_")[1])
+        await view_product(update, context, prod_id)
+    elif data.startswith("add_"):
+        prod_id = int(data.split("_")[1])
+        user_id = update.effective_user.id
     if user_id not in user_carts:
         user_carts[user_id] = {}
-    
         # Увеличиваем количество
-        user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
-    
+    user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
         await query.answer("✅ Товар добавлен!")
         await view_product(update, context, prod_id)
     elif data == "cart":
@@ -161,11 +159,11 @@ elif data.startswith("add_"):
         await query.delete_message()
         # Отправляем новое текстовое меню категории
         items = [p for p in PRODUCTS if p["category"] == category]
-        if not items:
-            await update.effective_chat.send_message(
+    if not items:
+        await update.effective_chat.send_message(
                 "В этой категории нет товаров.",
-                reply_markup=back_kb()
-            )
+            reply_markup=back_kb()
+        )
         else:
             buttons = [[InlineKeyboardButton(p["name"], callback_data=f"view_{p['id']}")] for p in items]
             buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")])
