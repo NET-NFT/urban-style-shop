@@ -143,10 +143,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("add_"):
         prod_id = int(data.split("_")[1])
         user_id = update.effective_user.id
-    if user_id not in user_carts:
-        user_carts[user_id] = {}
+        if user_id not in user_carts:
+            user_carts[user_id] = {}
         # Увеличиваем количество
-    user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
+        user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
         await query.answer("✅ Товар добавлен!")
         await view_product(update, context, prod_id)
     elif data == "cart":
