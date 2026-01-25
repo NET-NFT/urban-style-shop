@@ -204,14 +204,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "ttt_vs_friend":
         await create_ttt_game(update, context)
     elif data == "enter_promo":
-    await query.edit_message_text(
-        "Введите промокод:",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("⬅️ Отмена", callback_data="cart")]
-        ])
-    )
-    # Ожидаем текстовый ввод
-    context.user_data['awaiting_promo'] = True
+        await query.edit_message_text(
+            "Введите промокод:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Отмена", callback_data="cart")]
+            ])
+        )
+        # Ожидаем текстовый ввод
+        context.user_data['awaiting_promo'] = True
 
 async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_id: int):
     query = update.callback_query
