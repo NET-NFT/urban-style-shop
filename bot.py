@@ -99,26 +99,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Управление количеством
     if data.startswith("inc_"):
         prod_id = int(data.split("_")[1])
-        user_id = update.effective_user.id
-        if user_id in user_carts and prod_id in user_carts[user_id]:
-            user_carts[user_id][prod_id] += 1
+        if user_id not in user_carts:
+            user_carts[user_id] = {}
+        user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
         await show_cart(update, context)
+        return
 
     elif data.startswith("dec_"):
         prod_id = int(data.split("_")[1])
-        user_id = update.effective_user.id
         if user_id in user_carts and prod_id in user_carts[user_id]:
             user_carts[user_id][prod_id] -= 1
             if user_carts[user_id][prod_id] <= 0:
                 del user_carts[user_id][prod_id]
         await show_cart(update, context)
+        return
 
     elif data.startswith("del_"):
         prod_id = int(data.split("_")[1])
-        user_id = update.effective_user.id
         if user_id in user_carts and prod_id in user_carts[user_id]:
             del user_carts[user_id][prod_id]
         await show_cart(update, context)
+        return
         
     elif data == "cat_clothing":
         await show_category(update, context, "clothing")
@@ -591,7 +592,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("tictactoe", start_ttt))
     app.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
     app.add_handler(CallbackQueryHandler(lambda u, c: u.callback_query.answer(), pattern="^ignore$"))
-    app.add_handler(CallbackQueryHandler(button_handler, pattern="^(cat_|cart|ttt_game|ttt_menu|ttt_vs_bot|ttt_vs_friend|view_|add_|pay_rub|back_)"))
+    app.add_handler(CallbackQueryHandler(button_handler, pattern=r"^(inc_|dec_|del_|cat_|cart|ttt_game|ttt_menu|ttt_vs_bot|ttt_vs_friend|view_|add_|pay_rub|back_)"))
     app.add_handler(CallbackQueryHandler(ttt_menu, pattern="^ttt_menu$"))
     app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
