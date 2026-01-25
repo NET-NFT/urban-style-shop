@@ -541,7 +541,7 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
             board[bot_move] = 'O'
 
             # Проверка победы бота (только если не должен проиграть)
-            if not should_lose and check_win(board, 'O'):
+            if check_win(board, 'O'):
                 result_text = "🤖 Бот победил! Попробуй ещё раз!"
                 del games[chat_id]
                 await query.edit_message_text(text=result_text, reply_markup=None)
