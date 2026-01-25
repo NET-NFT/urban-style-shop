@@ -159,11 +159,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.delete_message()
         # Отправляем новое текстовое меню категории
         items = [p for p in PRODUCTS if p["category"] == category]
-    if not items:
-        await update.effective_chat.send_message(
+        if not items:
+            await update.effective_chat.send_message(
                 "В этой категории нет товаров.",
-            reply_markup=back_kb()
-        )
+                reply_markup=back_kb()
+            )
         else:
             buttons = [[InlineKeyboardButton(p["name"], callback_data=f"view_{p['id']}")] for p in items]
             buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")])
