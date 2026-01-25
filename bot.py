@@ -356,21 +356,31 @@ async def show_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     total = 0
+    buttons = []
+    
     for pid, qty in cart.items():
         product = next((p for p in PRODUCTS if p["id"] == pid), None)
-        if product:
-            total += product["price_rub"] * qty
+        if not product:
+            continue
+            
+        total += product["price_rub"] * qty
+        
+        # Кнопки управления
+        control_buttons = [
+            InlineKeyboardButton("-", callback_data=f"dec_{pid}"),
+            InlineKeyboardButton(str(qty), callback_data="ignore"),
+            InlineKeyboardButton("+", callback_data=f"inc_{pid}")
+        ]
+        buttons.append([InlineKeyboardButton(f"{product['name']} × {qty}", callback_data=f"view_{pid}")])
+        buttons.append(control_buttons)
+        buttons.append([InlineKeyboardButton("🗑️ Удалить", callback_data=f"del_{pid}")])
+        buttons.append([])  # Пустая строка для разделения
 
     # Применяем скидку
     discount = 200 if promo in active_promocodes else 0
     final_total = max(total - discount, 0)
 
     text = "🛒 *Ваша корзина:*\n\n"
-    for pid, qty in cart.items():
-        product = next((p for p in PRODUCTS if p["id"] == pid), None)
-        if product:
-            text += f"- {product['name']} × {qty}\n"
-    
     if discount > 0:
         text += f"\nСкидка по промокоду: -{discount} ₽"
     
@@ -383,11 +393,12 @@ async def show_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("💳 Оплатить", callback_data="pay_rub")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]
     ])
+    buttons.extend(kb)
 
     await query.edit_message_text(
         text, 
         parse_mode="Markdown", 
-        reply_markup=InlineKeyboardMarkup(kb)
+        reply_markup=InlineKeyboardMarkup(buttons)
     )
 
 async def send_rub_invoice(update: Update, context: ContextTypes.DEFAULT_TYPE):
