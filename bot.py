@@ -686,7 +686,7 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(ttt_move, pattern="^move_"))
     app.add_handler(CallbackQueryHandler(lambda u, c: u.callback_query.answer(), pattern="^ignore$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_promo_input))
-    app.add_handler(CallbackQueryHandler(button_handler, pattern=r"^(inc_|dec_|del_|cat_|cart|ttt_game|ttt_menu|ttt_vs_bot|ttt_vs_friend|view_|add_|pay_rub|back_)"))
+    app.add_handler(CallbackQueryHandler(button_handler, pattern=r"^(inc_|dec_|del_|cat_|cart|ttt_game|ttt_menu|ttt_vs_bot|ttt_vs_friend|view_|add_|pay_rub|back_|enter_promo)"))
     app.add_handler(CallbackQueryHandler(ttt_menu, pattern="^ttt_menu$"))
     app.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
