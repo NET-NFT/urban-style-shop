@@ -25,12 +25,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # === Хранение данных ===
+from collections import defaultdict
+import time
+# ... существующие переменные ...
 user_carts = {}
 active_promocodes = set()  # Множество активных промокодов
 user_game_count = {}       # Счётчик игр: {user_id: count}
 games = {}  # Для крестиков-ноликов
 active_games = {}      # Игры между двумя игроками
 pending_invites = {}   # Ожидающие приглашения
+# === Защита от спама ===
+user_last_action = defaultdict(float)
 
 # === Загрузка товаров ===
 try:
@@ -71,6 +76,18 @@ def generate_promo():
     code = "WIN" + str(random.randint(1000, 9999))
     active_promocodes.add(code)  # Сохраняем как активный
     return code
+
+# === Защита от спама ===
+async def rate_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    now = time.time()
+    
+    if now - user_last_action[user_id] < 1.0:  # 1 сек между действиями
+        await update.callback_query.answer("⏳ Подождите немного!")
+        return True
+        
+    user_last_action[user_id] = now
+    return False
 
 def find_losing_move(board, player):
     """Находит ход, который приведёт к победе игрока (бот проигрывает)"""
@@ -117,10 +134,20 @@ def category_menu():
     ])
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Защита от спама
+    if await rate_limit(update, context):
+        return
+        
     query = update.callback_query
     await query.answer()
     data = query.data
     user_id = update.effective_user.id
+
+    # Валидация данных
+    if len(data) > 50 or not re.match(r"^[a-zA-Z0-9_\-]+$", data):
+        await query.answer("Недопустимый запрос")
+        logger.warning(f"Подозрительный callback_data: {data} от пользователя {user_id}")
+        return
     
         # Управление количеством
     if data.startswith("inc_"):
@@ -225,6 +252,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['awaiting_promo'] = True
 
 async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_id: int):
+    # Защита от спама
+    if await rate_limit(update, context):
+        return
+        
     query = update.callback_query
     product = next((p for p in PRODUCTS if p["id"] == prod_id), None)
     if not product:
@@ -270,6 +301,10 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
         )
 
 async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
+    # Защита от спама
+    if await rate_limit(update, context):
+        return
+        
     query = update.callback_query
     items = [p for p in PRODUCTS if p["category"] == category]
     if not items:
@@ -355,6 +390,28 @@ def back_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")]
     ])
+
+def calculate_cart_total(user_id: int, context: ContextTypes.DEFAULT_TYPE = None) -> int:
+    """
+    Возвращает общую сумму корзины в рублях (без копеек)
+    Учитывает промокод, если context передан
+    """
+    cart = user_carts.get(user_id, {})
+    total = 0
+    
+    # Считаем базовую сумму
+    for pid, qty in cart.items():
+        product = next((p for p in PRODUCTS if p["id"] == pid), None)
+        if product:
+            total += product["price_rub"] * qty
+
+    # Применяем скидку по промокоду
+    if context and hasattr(context, 'user_data'):
+        promo = context.user_data.get('promo')
+        if promo in active_promocodes:
+            total = max(total - 200, 0)  # Минимальная сумма — 0
+    
+    return total
 
 async def show_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -454,8 +511,33 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
     payment = update.message.successful_payment
     user_id = user.id
 
+    # === Проверка валюты ===
+    if payment.currency != "RUB":
+        logger.warning(f"Неверная валюта: {payment.currency} от пользователя {user_id}")
+        await update.message.reply_text("❌ Ошибка оплаты: неверная валюта.")
+        return
+
+    # === Проверка получателя ===
+    if payment.provider_token != PROVIDER_TOKEN:
+        logger.warning(f"Подозрительный провайдер: {payment.provider_token} от {user_id}")
+        await update.message.reply_text("❌ Ошибка оплаты: неавторизованный платёжный сервис.")
+        return
+
+    # === Проверка суммы с учётом промокода ===
+    expected_amount = calculate_cart_total(user_id, context) * 100  # в копейках
+    if payment.total_amount != expected_amount:
+        logger.warning(f"Несоответствие суммы: ожидаемо {expected_amount}, получено {payment.total_amount} от {user_id}")
+        await update.message.reply_text("❌ Ошибка оплаты: сумма не совпадает. Свяжитесь с поддержкой.")
+        return
+
+    # === Обработка заказа ===
     if user_id in user_carts:
         del user_carts[user_id]
+    
+    # Деактивируем промокод после использования
+    if context.user_data.get('promo') in active_promocodes:
+        active_promocodes.remove(context.user_data['promo'])
+        context.user_data.pop('promo', None)
 
     await context.bot.send_message(
         chat_id=ADMIN_CHAT_ID,
