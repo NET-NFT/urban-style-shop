@@ -83,6 +83,17 @@ def find_losing_move(board, player):
             board[i] = " "
     return None
 
+def find_winning_move(board, player):
+    """Находит ход, который приведёт к победе указанного игрока"""
+    for i in range(9):
+        if board[i] == " ":
+            board[i] = player
+            if check_win(board, player):
+                board[i] = " "  # Отменяем изменение
+                return i
+            board[i] = " "
+    return None
+
 # === Обработчики магазина ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args and context.args[0].startswith("ttt_"):
@@ -521,45 +532,55 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # === ХОД БОТА (O) ===
+            # === ХОД БОТА (O) ===
         empty_cells = [i for i, cell in enumerate(board) if cell == " "]
-        if empty_cells:
-            # Счётчик игр
-            if user_id not in user_game_count:
-                user_game_count[user_id] = 0
-            user_game_count[user_id] += 1
-            
-            # Бот проигрывает только после 5 игр
-            should_lose = user_game_count[user_id] >= 5
-            
-            if should_lose:
-                bot_move = find_losing_move(board, 'X')
-                if bot_move is None:
-                    bot_move = random.choice(empty_cells)
-            else:
-                bot_move = random.choice(empty_cells)
-            
-            board[bot_move] = 'O'
+        if not empty_cells:
+            return
 
-            # Проверка победы бота (только если не должен проиграть)
-            if check_win(board, 'O'):
-                result_text = "🤖 Бот победил! Попробуй ещё раз!"
-                del games[chat_id]
-                await query.edit_message_text(text=result_text, reply_markup=None)
-                return
+        user_id = update.effective_user.id
+    
+        # Увеличиваем счётчик игр
+        if user_id not in user_game_count:
+            user_game_count[user_id] = 0
+        user_game_count[user_id] += 1
+    
+        should_lose = user_game_count[user_id] >= 5
 
-            # Проверка ничьей после хода бота
-            if check_draw(board):
-                result_text = "🤝 Ничья! 🤝"
-                del games[chat_id]
-                await query.edit_message_text(text=result_text, reply_markup=None)
-                return
+        bot_move = None
+
+        if not should_lose:
+            # 1. Попробовать выиграть
+            bot_move = find_winning_move(board, 'O')
+        
+            # 2. Если не получается — заблокировать игрока
+            if bot_move is None:
+                bot_move = find_winning_move(board, 'X')
+    
+        # 3. Если всё ещё нет хода — выбрать случайно
+        if bot_move is None:
+            bot_move = random.choice(empty_cells)
+    
+        board[bot_move] = 'O'
+
+        # Проверка победы бота
+        if check_win(board, 'O'):
+            result_text = "🤖 Бот победил! Попробуй ещё раз!"
+            del games[chat_id]
+            await query.edit_message_text(text=result_text, reply_markup=None)
+            return
+
+        # Проверка ничьей
+        if check_draw(board):
+            result_text = "🤝 Ничья!"
+            del games[chat_id]
+            await query.edit_message_text(text=result_text, reply_markup=None)
+            return
 
         # Обновляем доску
         await query.edit_message_text(
             text="Ваш ход:",
             reply_markup=get_game_keyboard(board)
         )
-        return
 
     # Мультиплеерная игра (если есть)
     game_id = None
