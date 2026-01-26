@@ -575,7 +575,14 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_game_count[user_id] += 1
     
             await query.edit_message_text(text=result_text, reply_markup=None)
-   
+            return
+
+    # === ОБНОВЛЕНИЕ ДОСКИ, ЕСЛИ ИГРА ПРОДОЛЖАЕТСЯ ===
+        await query.edit_message_text(
+            text="Ваш ход:",
+            reply_markup=get_game_keyboard(board)
+        )
+        
     # Мультиплеерная игра (если есть)
     game_id = None
     game = None
