@@ -2,6 +2,7 @@ import json
 import os
 import logging
 import random
+import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, InputMediaPhoto
 from telegram.ext import (
     Application,
