@@ -517,6 +517,13 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
             promo = generate_promo()
             result_text = f"🎉 Вы победили! 🎉\n\nТвой промокод: `{promo}`\n+30 ⭐️ бонусов на счёт!"
             del games[chat_id]
+    
+            # ← Увеличиваем счётчик при победе
+            user_id = update.effective_user.id
+            if user_id not in user_game_count:
+                user_game_count[user_id] = 0
+            user_game_count[user_id] += 1
+    
             await query.edit_message_text(
                 text=result_text,
                 reply_markup=None,
@@ -532,40 +539,27 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # === ХОД БОТА (O) ===
-            # === ХОД БОТА (O) ===
         empty_cells = [i for i, cell in enumerate(board) if cell == " "]
         if not empty_cells:
             return
 
-        user_id = update.effective_user.id
-    
-        # Увеличиваем счётчик игр
-        if user_id not in user_game_count:
-            user_game_count[user_id] = 0
-        user_game_count[user_id] += 1
-    
-        should_lose = user_game_count[user_id] >= 5
-
         bot_move = None
 
-        if not should_lose:
-            # 1. Попробовать выиграть
-            bot_move = find_winning_move(board, 'O')
-        
-            # 2. Если не получается — заблокировать игрока
-            if bot_move is None:
-                bot_move = find_winning_move(board, 'X')
-    
-        # 3. Если всё ещё нет хода — выбрать случайно
+        # Бот пытается выиграть или заблокировать
+        bot_move = find_winning_move(board, 'O')
+        if bot_move is None:
+            bot_move = find_winning_move(board, 'X')
         if bot_move is None:
             bot_move = random.choice(empty_cells)
-    
+
         board[bot_move] = 'O'
 
         # Проверка победы бота
         if check_win(board, 'O'):
             result_text = "🤖 Бот победил! Попробуй ещё раз!"
             del games[chat_id]
+    
+            # ← Счётчик НЕ увеличиваем — бот победил
             await query.edit_message_text(text=result_text, reply_markup=None)
             return
 
@@ -573,15 +567,15 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if check_draw(board):
             result_text = "🤝 Ничья!"
             del games[chat_id]
+    
+            # ← Увеличиваем счётчик ТОЛЬКО при завершении игры
+            user_id = update.effective_user.id
+            if user_id not in user_game_count:
+                user_game_count[user_id] = 0
+            user_game_count[user_id] += 1
+    
             await query.edit_message_text(text=result_text, reply_markup=None)
-            return
-
-        # Обновляем доску
-        await query.edit_message_text(
-            text="Ваш ход:",
-            reply_markup=get_game_keyboard(board)
-        )
-
+   
     # Мультиплеерная игра (если есть)
     game_id = None
     game = None
