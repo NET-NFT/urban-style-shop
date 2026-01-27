@@ -179,6 +179,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     elif data == "cat_clothing":
+        logger.info("Загружаем категорию clothing")
         await show_category(update, context, "clothing")
     elif data == "cat_shoes":
         await show_category(update, context, "shoes")
