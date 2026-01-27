@@ -308,26 +308,17 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     query = update.callback_query
     items = [p for p in PRODUCTS if p["category"] == category]
     if not items:
-        # Всегда используем текст для "пусто"
         await query.edit_message_text("В этой категории нет товаров.", reply_markup=back_kb())
         return
 
     buttons = [[InlineKeyboardButton(p["name"], callback_data=f"view_{p['id']}")] for p in items]
     buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_categories")])
 
-    # Проверяем: есть ли у сообщения фото?
-    if query.message.photo:
-        # Редактируем ТОЛЬКО подпись (caption), не трогая фото
-        await query.edit_message_caption(
-            caption="Выберите товар:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-    else:
-        # Обычное текстовое сообщение
-        await query.edit_message_text(
-            "Выберите товар:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
+    # ВСЕГДА используем edit_message_text для категорий
+    await query.edit_message_text(
+        "Выберите товар:",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
 
 async def handle_promo_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get('awaiting_promo'):
