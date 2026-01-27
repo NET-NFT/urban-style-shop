@@ -258,51 +258,48 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_id: int):
     query = update.callback_query
-    product = next((p for p in PRODUCTS if p["id"] == prod_id), None)
-    if not product:
-        await query.edit_message_text("Товар не найден.")
-        return
-    # Защита от спама
-    if await rate_limit(update, context):
-        return
+    try:
+        product = next((p for p in PRODUCTS if p["id"] == prod_id), None)
+        if not product:
+            await query.edit_message_text("Товар не найден.")
+            return
 
-    caption = f"*{product['name']}*\n\n{product['description']}\n\nЦена: {product['price_rub']} ₽"
-    keyboard = [
-        [InlineKeyboardButton("➕ В корзину", callback_data=f"add_{prod_id}")],
-        [InlineKeyboardButton("⬅️ Назад", callback_data=f"back_cat_{product['category']}")]
-    ]
+        # Убираем пробелы из photo_url
+        photo_url = product.get("photo_url", "").strip()
 
-    if product.get("photo_url"):
-        media = InputMediaPhoto(media=product["photo_url"], caption=caption, parse_mode="Markdown")
-        try:
-            # Если уже есть фото — редактируем подпись
-            if query.message.photo:
-                await query.edit_message_caption(
-                    caption=caption,
-                    parse_mode="Markdown",
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-            else:
-                # Первый раз — отправляем фото
+        caption = f"*{product['name']}*\n\n{product['description']}\n\nЦена: {product['price_rub']} ₽"
+        keyboard = [
+            [InlineKeyboardButton("➕ В корзину", callback_data=f"add_{prod_id}")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data=f"back_cat_{product['category']}")]
+        ]
+
+        if photo_url:
+            try:
+                # Проверяем, что URL валиден
+                if not photo_url.startswith(("http://", "https://")):
+                    raise ValueError("Неверный URL фото")
+                    
                 await query.edit_message_media(
-                    media=media,
+                    media=InputMediaPhoto(media=photo_url, caption=caption, parse_mode="Markdown"),
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
-        except Exception as e:
-            logger.error(f"Ошибка при отправке фото: {e}")
-            # Резерв: текст
+            except Exception as e:
+                logger.error(f"Ошибка загрузки фото ({photo_url}): {e}")
+                # Отправляем текст вместо фото
+                await query.edit_message_text(
+                    caption, 
+                    parse_mode="Markdown", 
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+        else:
             await query.edit_message_text(
-                text=caption,
-                parse_mode="Markdown",
+                caption, 
+                parse_mode="Markdown", 
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-    else:
-        # Без фото — всегда текст
-        await query.edit_message_text(
-            text=caption,
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+    except Exception as e:
+        logger.error(f"Критическая ошибка в view_product: {e}")
+        await query.edit_message_text("Произошла ошибка. Попробуйте позже.")
 
 async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):    
     query = update.callback_query
