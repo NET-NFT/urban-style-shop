@@ -134,15 +134,18 @@ def category_menu():
         [InlineKeyboardButton("🎮 Крестики-нолики", callback_data="ttt_menu")]
     ])
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Защита от спама
-    if await rate_limit(update, context):
-        return
-        
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):    
     query = update.callback_query
     await query.answer()
     data = query.data
     user_id = update.effective_user.id
+
+    # ЛОГИРОВАНИЕ
+    logger.info(f"Получен callback: {data} от пользователя {user_id}")
+
+    # Защита от спама
+    if await rate_limit(update, context):
+        return
 
     # Валидация данных
     if len(data) > 50 or not re.match(r"^[a-zA-Z0-9_\-]+$", data):
