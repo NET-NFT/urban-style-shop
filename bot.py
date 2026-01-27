@@ -257,14 +257,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['awaiting_promo'] = True
 
 async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_id: int):
-    # Защита от спама
-    if await rate_limit(update, context):
-        return
-        
     query = update.callback_query
     product = next((p for p in PRODUCTS if p["id"] == prod_id), None)
     if not product:
         await query.edit_message_text("Товар не найден.")
+        return
+    # Защита от спама
+    if await rate_limit(update, context):
         return
 
     caption = f"*{product['name']}*\n\n{product['description']}\n\nЦена: {product['price_rub']} ₽"
