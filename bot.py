@@ -304,11 +304,7 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
-    # Защита от спама
-    if await rate_limit(update, context):
-        return
-        
+async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):    
     query = update.callback_query
     items = [p for p in PRODUCTS if p["category"] == category]
     if not items:
