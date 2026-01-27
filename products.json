@@ -13,7 +13,7 @@
     "category": "shoes",
     "price_rub": 4990,
     "description": "Лёгкие кроссовки для города. Подошва — резина.",
-    "photo_url": "https://i.ibb.co/your-sneakers-photo.jpg"
+    "photo_url": ""
   },
   {
     "id": 3,
@@ -21,6 +21,6 @@
     "category": "accessories",
     "price_rub": 2490,
     "description": "Водонепроницаемый рюкзак с отделением для ноутбука до 15\".",
-    "photo_url": "https://i.ibb.co/your-backpack-photo.jpg"
+    "photo_url": "https://i.ibb.co/MkTpsfpf/image.jpg"
   }
 ]
