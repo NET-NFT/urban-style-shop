@@ -4,6 +4,7 @@ import logging
 import random
 import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, InputMediaPhoto
+from telegram.error import BadRequest
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -264,9 +265,7 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
             await query.edit_message_text("Товар не найден.")
             return
 
-        # Убираем пробелы из photo_url
         photo_url = product.get("photo_url", "").strip()
-
         caption = f"*{product['name']}*\n\n{product['description']}\n\nЦена: {product['price_rub']} ₽"
         keyboard = [
             [InlineKeyboardButton("➕ В корзину", callback_data=f"add_{prod_id}")],
@@ -275,7 +274,6 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
 
         if photo_url:
             try:
-                # Проверяем, что URL валиден
                 if not photo_url.startswith(("http://", "https://")):
                     raise ValueError("Неверный URL фото")
                     
@@ -283,20 +281,28 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
                     media=InputMediaPhoto(media=photo_url, caption=caption, parse_mode="Markdown"),
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
+            except BadRequest as e:
+                if "Message is not modified" in str(e):
+                    # Игнорируем ошибку — пользователь уже видит это сообщение
+                    pass
+                else:
+                    logger.error(f"Ошибка фото: {e}")
+                    await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
             except Exception as e:
-                logger.error(f"Ошибка загрузки фото ({photo_url}): {e}")
-                # Отправляем текст вместо фото
+                logger.error(f"Ошибка загрузки фото: {e}")
+                await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            try:
                 await query.edit_message_text(
                     caption, 
                     parse_mode="Markdown", 
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
-        else:
-            await query.edit_message_text(
-                caption, 
-                parse_mode="Markdown", 
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+            except BadRequest as e:
+                if "Message is not modified" in str(e):
+                    pass  # Игнорируем
+                else:
+                    raise
     except Exception as e:
         logger.error(f"Критическая ошибка в view_product: {e}")
         await query.edit_message_text("Произошла ошибка. Попробуйте позже.")
