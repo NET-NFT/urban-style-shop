@@ -143,7 +143,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
-    user_id = update.effective_user.id
+    user_id = context.user_data.get('session_user_id', update.effective_user.id)
 
     # ЛОГИРОВАНИЕ
     logger.info(f"Получен callback: {data} от пользователя {user_id}")
@@ -207,14 +207,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("add_"):
     prod_id = int(data.split("_")[1])
     user_id = update.effective_user.id
-    
     # === Проверка на переполнение корзины ===
     MAX_CART_ITEMS = 20
     current_cart = user_carts.get(user_id, {})
     if len(current_cart) >= MAX_CART_ITEMS:
         await query.answer("🛒 Корзина переполнена! Максимум 20 товаров.")
         return
-    
     # Добавляем товар
     if user_id not in user_carts:
         user_carts[user_id] = {}
@@ -359,7 +357,7 @@ async def handle_promo_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return False
 
 async def show_cart_from_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user_id = context.user_data.get('session_user_id', update.effective_user.id)
     cart = user_carts.get(user_id, {})
     if not cart:
         await update.message.reply_text("Корзина пуста.", reply_markup=back_kb())
@@ -429,7 +427,7 @@ def calculate_cart_total(user_id: int, context: ContextTypes.DEFAULT_TYPE = None
 
 async def show_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user_id = update.effective_user.id
+    user_id = context.user_data.get('session_user_id', update.effective_user.id)
     cart = user_carts.get(user_id, {})
     promo = context.user_data.get('promo', None)
     
@@ -485,7 +483,7 @@ async def show_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_rub_invoice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user_id = update.effective_user.id
+    user_id = context.user_data.get('session_user_id', update.effective_user.id)
     cart = user_carts.get(user_id, {})
     
     if not cart:
@@ -589,7 +587,8 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     chat_id = query.message.chat.id
-    user_id = update.effective_user.id
+    user_id = context.user_data.get('session_user_id', update.effective_user.id)
+    MAX_GAMES_PER_DAY = 10
 
     # Игра с ботом
     if chat_id in games:
