@@ -3,6 +3,7 @@ import os
 import logging
 import random
 import re
+import uuid
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, InputMediaPhoto
 from telegram.error import BadRequest
 from telegram.ext import (
@@ -115,6 +116,9 @@ def find_winning_move(board, player):
 
 # === Обработчики магазина ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Сохраняем user_id при первом контакте
+    context.user_data['session_user_id'] = update.effective_user.id
+    
     if context.args and context.args[0].startswith("ttt_"):
         game_id = context.args[0][4:]
         await join_ttt_game(update, context, game_id)
@@ -201,14 +205,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prod_id = int(data.split("_")[1])
         await view_product(update, context, prod_id)
     elif data.startswith("add_"):
-        prod_id = int(data.split("_")[1])
-        user_id = update.effective_user.id
-        if user_id not in user_carts:
-            user_carts[user_id] = {}
-        # Увеличиваем количество
-        user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
-        await query.answer("✅ Товар добавлен!")
-        await view_product(update, context, prod_id)
+    prod_id = int(data.split("_")[1])
+    user_id = update.effective_user.id
+    
+    # === Проверка на переполнение корзины ===
+    MAX_CART_ITEMS = 20
+    current_cart = user_carts.get(user_id, {})
+    if len(current_cart) >= MAX_CART_ITEMS:
+        await query.answer("🛒 Корзина переполнена! Максимум 20 товаров.")
+        return
+    
+    # Добавляем товар
+    if user_id not in user_carts:
+        user_carts[user_id] = {}
+    user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
+    await query.answer("✅ Товар добавлен!")
+    await view_product(update, context, prod_id)
     elif data == "cart":
         await show_cart(update, context)
     elif data == "pay_rub":
@@ -262,7 +274,7 @@ async def view_product(update: Update, context: ContextTypes.DEFAULT_TYPE, prod_
     try:
         product = next((p for p in PRODUCTS if p["id"] == prod_id), None)
         if not product:
-            await query.edit_message_text("Товар не найден.")
+            await query.edit_message_text("❌ Товар не найден. Возможно, он удалён.")
             return
 
         photo_url = product.get("photo_url", "").strip()
@@ -326,6 +338,14 @@ async def show_category(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
 async def handle_promo_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get('awaiting_promo'):
         promo = update.message.text.strip().upper()
+
+        # === Проверка длины промокода ===
+        if len(promo) > 20:
+            await update.message.reply_text("❌ Слишком длинный промокод")
+            return
+        if not re.match(r"^[A-Z0-9]+$", promo):
+            await update.message.reply_text("❌ Промокод может содержать только буквы и цифры")
+            return   
         if promo in active_promocodes:
             context.user_data['promo'] = promo
             await update.message.reply_text("✅ Промокод применён! Скидка 200 ₽ активна.")
@@ -501,23 +521,18 @@ async def precheckout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.pre_checkout_query.answer(ok=True)
 
 async def successful_payment_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
     payment = update.message.successful_payment
-    user_id = user.id
+    user_id = context.user_data.get('session_user_id', update.effective_user.id)
+    user = update.effective_user
+    username = user.username or f"id{user.id}"
 
-    # === Проверка валюты ===
+       # === Проверка валюты ===
     if payment.currency != "RUB":
         logger.warning(f"Неверная валюта: {payment.currency} от пользователя {user_id}")
         await update.message.reply_text("❌ Ошибка оплаты: неверная валюта.")
         return
 
-    # === Проверка получателя ===
-    if payment.provider_token != PROVIDER_TOKEN:
-        logger.warning(f"Подозрительный провайдер: {payment.provider_token} от {user_id}")
-        await update.message.reply_text("❌ Ошибка оплаты: неавторизованный платёжный сервис.")
-        return
-
-    # === Проверка суммы с учётом промокода ===
+        # === Проверка суммы с учётом промокода ===
     expected_amount = calculate_cart_total(user_id, context) * 100  # в копейках
     if payment.total_amount != expected_amount:
         logger.warning(f"Несоответствие суммы: ожидаемо {expected_amount}, получено {payment.total_amount} от {user_id}")
@@ -533,6 +548,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
         active_promocodes.remove(context.user_data['promo'])
         context.user_data.pop('promo', None)
 
+    username = user.username or f"id{user.id}"
     await context.bot.send_message(
         chat_id=ADMIN_CHAT_ID,
         text=f"✅ *Новый заказ!* \nПользователь: @{user.username}\nСумма: {payment.total_amount // 100} ₽",
@@ -737,8 +753,6 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
            
-import uuid
-
 async def create_ttt_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     game_id = str(uuid.uuid4())[:8]
