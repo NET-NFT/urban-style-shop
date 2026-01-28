@@ -214,8 +214,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("🛒 Корзина переполнена! Максимум 20 товаров.")
             return
     # Добавляем товар
-    if user_id not in user_carts:
-        user_carts[user_id] = {}
+        if user_id not in user_carts:
+            user_carts[user_id] = {}
         user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
         await query.answer("✅ Товар добавлен!")
         await view_product(update, context, prod_id)
