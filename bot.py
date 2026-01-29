@@ -21,6 +21,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
 PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").strip()  # Убираем пробелы
+MAX_GAMES_PER_DAY = 10
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -33,7 +34,7 @@ import time
 # ... существующие переменные ...
 user_carts = {}
 active_promocodes = set()  # Множество активных промокодов
-user_game_count = {}       # Счётчик игр: {user_id: count}
+user_game_history = defaultdict(list)       # Счётчик игр: {user_id: count}
 games = {}  # Для крестиков-ноликов
 active_games = {}      # Игры между двумя игроками
 pending_invites = {}   # Ожидающие приглашения
@@ -598,6 +599,23 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
 
 # === Обработчики игры ===
 async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    now = time.time()
+
+    # Удаляем старые игры (>24 часов)
+    user_game_history[user_id] = [
+        ts for ts in user_game_history[user_id] 
+        if now - ts < 86400  # 24 часа в секундах
+    ]
+
+    # Проверка лимита
+    if len(user_game_history[user_id]) >= MAX_GAMES_PER_DAY:
+        await update.message.reply_text(
+            f"🎮 Лимит игр на сегодня исчерпан ({MAX_GAMES_PER_DAY}/день). Попробуйте завтра!"
+        )
+        return
+        
+    # Запуск игры    
     logger.info("Запуск игры с ботом")
     chat_id = update.effective_chat.id
     board = create_game_board()
@@ -606,6 +624,8 @@ async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'current_player': 'X',
         'vs_bot': True  # ← игра против бота
     }
+    user_game_history[user_id].append(now)  # ← Сохраняем время
+    
     await context.bot.send_message(
         chat_id=chat_id,
         text="🎮 Игра против бота!\nВы — X. Сделайте свой ход:",
