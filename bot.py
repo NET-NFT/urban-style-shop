@@ -159,8 +159,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
         # Управление количеством
-    if data.startswith("inc_"):
+    elif data.startswith("inc_"):
         prod_id = int(data.split("_")[1])
+        user_id = update.effective_user.id
+    
+        # === Проверка на общее количество товаров ===
+        MAX_TOTAL_ITEMS = 20
+        current_cart = user_carts.get(user_id, {})
+        total_items = sum(current_cart.values())
+    
+        if total_items >= MAX_TOTAL_ITEMS:
+            await query.answer(f"🛒 Корзина переполнена! Максимум {MAX_TOTAL_ITEMS} товаров.")
+            return
+        # Увеличиваем количество
         if user_id not in user_carts:
             user_carts[user_id] = {}
         user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
@@ -207,19 +218,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("add_"):
         prod_id = int(data.split("_")[1])
         user_id = update.effective_user.id
-        # === Проверка на переполнение корзины ===
+    
+        # === Проверка на общее количество товаров ===
         MAX_TOTAL_ITEMS = 20
         current_cart = user_carts.get(user_id, {})
         total_items = sum(current_cart.values())
+    
         if total_items >= MAX_TOTAL_ITEMS:
             await query.answer(f"🛒 Корзина переполнена! Максимум {MAX_TOTAL_ITEMS} товаров.")
             return
-    # Добавляем товар
+            
+        # Добавляем товар
         if user_id not in user_carts:
             user_carts[user_id] = {}
         user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
         await query.answer("✅ Товар добавлен!")
         await view_product(update, context, prod_id)
+        return
+    
     elif data == "cart":
         await show_cart(update, context)
     elif data == "pay_rub":
