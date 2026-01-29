@@ -22,6 +22,7 @@ ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
 PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").strip()  # Убираем пробелы
 MAX_GAMES_PER_DAY = 10
+MIN_GAMES_TO_LOSE = 5  # Бот проигрывает после 5 игр
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -114,6 +115,23 @@ def find_winning_move(board, player):
                 return i
             board[i] = " "
     return None
+
+def check_game_limits(user_id: int):
+    """Возвращает (can_play: bool, should_lose: bool)"""
+    now = time.time()
+    
+    # Удаляем игры старше 24 часов
+    user_game_history[user_id] = [
+        ts for ts in user_game_history[user_id] 
+        if now - ts < 86400
+    ]
+    
+    total_games = len(user_game_history[user_id])
+    
+    can_play = total_games < MAX_GAMES_PER_DAY
+    should_lose = total_games >= MIN_GAMES_TO_LOSE
+    
+    return can_play, should_lose
 
 # === Обработчики магазина ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -600,31 +618,18 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
 # === Обработчики игры ===
 async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    now = time.time()
-
-    # Удаляем старые игры (>24 часов)
-    user_game_history[user_id] = [
-        ts for ts in user_game_history[user_id] 
-        if now - ts < 86400  # 24 часа в секундах
-    ]
-
-    # Проверка лимита
-    if len(user_game_history[user_id]) >= MAX_GAMES_PER_DAY:
+    can_play, _ = check_game_limits(user_id)
+    
+    if not can_play:
         await update.message.reply_text(
             f"🎮 Лимит игр на сегодня исчерпан ({MAX_GAMES_PER_DAY}/день). Попробуйте завтра!"
         )
         return
-        
-    # Запуск игры    
+    
     logger.info("Запуск игры с ботом")
     chat_id = update.effective_chat.id
     board = create_game_board()
-    games[chat_id] = {
-        'board': board,
-        'current_player': 'X',
-        'vs_bot': True  # ← игра против бота
-    }
-    user_game_history[user_id].append(now)  # ← Сохраняем время
+    games[chat_id] = {'board': board, 'vs_bot': True}
     
     await context.bot.send_message(
         chat_id=chat_id,
@@ -666,75 +671,74 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
         board[move_index] = 'X'
 
         # Проверка победы игрока
-        if check_win(board, 'X'):
-            promo = generate_promo()
-            result_text = f"🎉 Вы победили! 🎉\n\nТвой промокод: `{promo}`\n+30 ⭐️ бонусов на счёт!"
-            del games[chat_id]
+    if check_win(board, 'X'):
+        promo = generate_promo()
+        result_text = f"🎉 Вы победили! 🎉\n\nТвой промокод: `{promo}`\n+30 ⭐️ бонусов на счёт!"
+        del games[chat_id]
     
-            # ← Увеличиваем счётчик при победе
-            user_id = update.effective_user.id
-            if user_id not in user_game_count:
-                user_game_count[user_id] = 0
-            user_game_count[user_id] += 1
+        # ЗАПИСЫВАЕМ ИГРУ В ИСТОРИЮ
+        user_id = update.effective_user.id
+        user_game_history[user_id].append(time.time())
     
-            await query.edit_message_text(
-                text=result_text,
-                reply_markup=None,
-                parse_mode="Markdown"
-            )
-            return
+        await query.edit_message_text(
+            text=result_text,
+            reply_markup=None,
+            parse_mode="Markdown"
+        )
+        return
 
-        # Проверка ничьей
-        if check_draw(board):
-            result_text = "🤝 Ничья! 🤝"
-            del games[chat_id]
-            await query.edit_message_text(text=result_text, reply_markup=None)
-            return
+    # Проверка ничьей
+    if check_draw(board):
+        result_text = "🤝 Ничья!"
+        del games[chat_id]
+    
+        # ЗАПИСЫВАЕМ ИГРУ В ИСТОРИЮ
+        user_id = update.effective_user.id
+        user_game_history[user_id].append(time.time())
+    
+        await query.edit_message_text(text=result_text, reply_markup=None)
+        return
 
-        # === ХОД БОТА (O) ===
-        empty_cells = [i for i, cell in enumerate(board) if cell == " "]
-        if not empty_cells:
-            return
+    # === ХОД БОТА (O) ===
+    empty_cells = [i for i, cell in enumerate(board) if cell == " "]
+    if not empty_cells:
+        return
 
-        bot_move = None
+    user_id = update.effective_user.id
+    _, should_lose = check_game_limits(user_id)  # ← Получаем флаг проигрыша
 
+    bot_move = None
+    if not should_lose:
         # Бот пытается выиграть или заблокировать
         bot_move = find_winning_move(board, 'O')
         if bot_move is None:
             bot_move = find_winning_move(board, 'X')
-        if bot_move is None:
-            bot_move = random.choice(empty_cells)
 
-        board[bot_move] = 'O'
+    if bot_move is None:
+        bot_move = random.choice(empty_cells)
 
-        # Проверка победы бота
-        if check_win(board, 'O'):
-            result_text = "🤖 Бот победил! Попробуй ещё раз!"
-            del games[chat_id]
-    
-            # ← Счётчик НЕ увеличиваем — бот победил
-            await query.edit_message_text(text=result_text, reply_markup=None)
-            return
+    board[bot_move] = 'O'
 
-        # Проверка ничьей
-        if check_draw(board):
-            result_text = "🤝 Ничья!"
-            del games[chat_id]
-    
-            # ← Увеличиваем счётчик ТОЛЬКО при завершении игры
-            user_id = update.effective_user.id
-            if user_id not in user_game_count:
-                user_game_count[user_id] = 0
-            user_game_count[user_id] += 1
-    
-            await query.edit_message_text(text=result_text, reply_markup=None)
-            return
+    # Проверка победы бота (только если не должен проиграть)
+    if not should_lose and check_win(board, 'O'):
+        result_text = "🤖 Бот победил! Попробуй ещё раз!"
+        del games[chat_id]
+        await query.edit_message_text(text=result_text, reply_markup=None)
+        return
 
-    # === ОБНОВЛЕНИЕ ДОСКИ, ЕСЛИ ИГРА ПРОДОЛЖАЕТСЯ ===
-        await query.edit_message_text(
-            text="Ваш ход:",
-            reply_markup=get_game_keyboard(board)
-        )
+    # Проверка ничьей после хода бота
+    if check_draw(board):
+        result_text = "🤝 Ничья!"
+        del games[chat_id]
+        user_game_history[user_id].append(time.time())  # ← Записываем ничью
+        await query.edit_message_text(text=result_text, reply_markup=None)
+        return
+
+    # Обновление доски
+    await query.edit_message_text(
+        text="Ваш ход:",
+        reply_markup=get_game_keyboard(board)
+    )
         
     # Мультиплеерная игра (если есть)
     game_id = None
