@@ -163,15 +163,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prod_id = int(data.split("_")[1])
         user_id = update.effective_user.id
     
-        # === Проверка на общее количество товаров ===
         MAX_TOTAL_ITEMS = 20
         current_cart = user_carts.get(user_id, {})
         total_items = sum(current_cart.values())
     
         if total_items >= MAX_TOTAL_ITEMS:
-            await query.answer(f"🛒 Корзина переполнена! Максимум {MAX_TOTAL_ITEMS} товаров.")
+            # Показываем ошибку прямо в корзине
+            await query.edit_message_text(
+                "🛒 Корзина переполнена!\nМаксимум 20 товаров. Удалите что-нибудь или уменьшите количество.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Вернуться в корзину", callback_data="cart")]
+                ])
+            )
             return
-        # Увеличиваем количество
+    
         if user_id not in user_carts:
             user_carts[user_id] = {}
         user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
@@ -219,16 +224,36 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prod_id = int(data.split("_")[1])
         user_id = update.effective_user.id
     
-        # === Проверка на общее количество товаров ===
         MAX_TOTAL_ITEMS = 20
         current_cart = user_carts.get(user_id, {})
         total_items = sum(current_cart.values())
     
         if total_items >= MAX_TOTAL_ITEMS:
-            await query.answer(f"🛒 Корзина переполнена! Максимум {MAX_TOTAL_ITEMS} товаров.")
+            # Показываем ошибку в карточке товара
+            product = next((p for p in PRODUCTS if p["id"] == prod_id), None)
+            if product:
+                caption = f"*{product['name']}*\n\n{product['description']}\n\n⚠️ Нельзя добавить: корзина заполнена (макс. 20)."
+                keyboard = [
+                    [InlineKeyboardButton("⬅️ Назад", callback_data=f"back_cat_{product['category']}")]
+                ]
+                if product.get("photo_url", "").strip():
+                    try:
+                        await query.edit_message_media(
+                            media=InputMediaPhoto(
+                                media=product["photo_url"].strip(),
+                                caption=caption,
+                                parse_mode="Markdown"
+                            ),
+                            reply_markup=InlineKeyboardMarkup(keyboard)
+                        )
+                    except Exception:
+                        await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+                else:
+                    await query.edit_message_text(caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+            else:
+                await query.edit_message_text("❌ Товар не найден.")
             return
-            
-        # Добавляем товар
+    
         if user_id not in user_carts:
             user_carts[user_id] = {}
         user_carts[user_id][prod_id] = user_carts[user_id].get(prod_id, 0) + 1
