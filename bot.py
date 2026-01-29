@@ -208,10 +208,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prod_id = int(data.split("_")[1])
         user_id = update.effective_user.id
         # === Проверка на переполнение корзины ===
-        MAX_CART_ITEMS = 20
+        MAX_TOTAL_ITEMS = 20
         current_cart = user_carts.get(user_id, {})
-        if len(current_cart) >= MAX_CART_ITEMS:
-            await query.answer("🛒 Корзина переполнена! Максимум 20 товаров.")
+        total_items = sum(current_cart.values())
+        if total_items >= MAX_TOTAL_ITEMS:
+            await query.answer(f"🛒 Корзина переполнена! Максимум {MAX_TOTAL_ITEMS} товаров.")
             return
     # Добавляем товар
         if user_id not in user_carts:
