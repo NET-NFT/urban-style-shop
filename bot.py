@@ -621,8 +621,11 @@ async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     can_play, _ = check_game_limits(user_id)
     
     if not can_play:
-        await update.message.reply_text(
-            f"🎮 Лимит игр на сегодня исчерпан ({MAX_GAMES_PER_DAY}/день). Попробуйте завтра!"
+        # Отправляем сообщение в чат, даже если это callback
+        chat_id = update.effective_chat.id
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f"🎮 Лимит игр на сегодня исчерпан ({MAX_GAMES_PER_DAY}/день). Попробуйте завтра!"
         )
         return
     
