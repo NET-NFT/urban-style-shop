@@ -745,6 +745,7 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="Ваш ход:",
         reply_markup=get_game_keyboard(board)
     )
+    return
         
     # Мультиплеерная игра (если есть)
     game_id = None
