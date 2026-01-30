@@ -22,6 +22,7 @@ ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
 PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").strip()  # Убираем пробелы
 MAX_GAMES_PER_DAY = 10
+MAX_PROMOS_PER_DAY = 2
 MIN_GAMES_TO_LOSE = 5  # Бот проигрывает после 5 игр
 
 logging.basicConfig(
@@ -35,7 +36,7 @@ import time
 # ... существующие переменные ...
 user_carts = {}
 active_promocodes = set()  # Множество активных промокодов
-user_game_history = defaultdict(list)       # Счётчик игр: {user_id: count}
+user_game_stats = defaultdict(lambda: {"games": [], "promos": 0})
 games = {}  # Для крестиков-ноликов
 active_games = {}      # Игры между двумя игроками
 pending_invites = {}   # Ожидающие приглашения
@@ -117,21 +118,20 @@ def find_winning_move(board, player):
     return None
 
 def check_game_limits(user_id: int):
-    """Возвращает (can_play: bool, should_lose: bool)"""
+    """Возвращает (can_play: bool, can_win: bool)"""
     now = time.time()
     
-    # Удаляем игры старше 24 часов
-    user_game_history[user_id] = [
-        ts for ts in user_game_history[user_id] 
-        if now - ts < 86400
-    ]
+    # Очистка старых игр (>24ч)
+    stats = user_game_stats[user_id]
+    stats["games"] = [ts for ts in stats["games"] if now - ts < 86400]
     
-    total_games = len(user_game_history[user_id])
+    total_games = len(stats["games"])
+    promo_count = stats["promos"]
     
-    can_play = total_games < MAX_GAMES_PER_DAY
-    should_lose = total_games >= MIN_GAMES_TO_LOSE
+    can_play = total_games < MAX_GAMES_PER_DAY  # 10 игр/день
+    can_win = promo_count < MAX_PROMOS_PER_DAY  # 2 промокода/день
     
-    return can_play, should_lose
+    return can_play, can_win
 
 # === Обработчики магазина ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -621,11 +621,8 @@ async def start_ttt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     can_play, _ = check_game_limits(user_id)
     
     if not can_play:
-        # Отправляем сообщение в чат, даже если это callback
-        chat_id = update.effective_chat.id
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=f"🎮 Лимит игр на сегодня исчерпан ({MAX_GAMES_PER_DAY}/день). Попробуйте завтра!"
+        await update.message.reply_text(
+            f"🎮 Лимит игр на сегодня исчерпан ({MAX_GAMES_PER_DAY}/день)."
         )
         return
     
@@ -675,23 +672,25 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Проверка победы игрока
     if check_win(board, 'X'):
-        promo = generate_promo()
-        result_text = f"🎉 Вы победили! 🎉\n\nТвой промокод: `{promo}`\n+30 ⭐️ бонусов на счёт!"
+        _, can_win = check_game_limits(user_id)
+    
+        if can_win:
+            # Выдаём промокод
+            promo = generate_promo()
+            result_text = f"🎉 Вы победили! 🎉\n\nТвой промокод: `{promo}`\n+30 ⭐️ бонусов!"
+            user_game_stats[user_id]["promos"] += 1
+        else:
+            # Победа без промокода
+            result_text = "🎉 Вы победили! Но лимит промокодов на сегодня исчерпан."
+    
+        user_game_stats[user_id]["games"].append(time.time())  # Записываем игру
         del games[chat_id]
-    
-        # ЗАПИСЫВАЕМ ИГРУ В ИСТОРИЮ
-        user_id = update.effective_user.id
-        user_game_history[user_id].append(time.time())
-    
-        await query.edit_message_text(
-            text=result_text,
-            reply_markup=None,
-            parse_mode="Markdown"
-        )
+        await query.edit_message_text(text=result_text, parse_mode="Markdown")
         return
 
     # Проверка ничьей
     if check_draw(board):
+        user_game_stats[user_id]["games"].append(time.time())
         result_text = "🤝 Ничья!"
         del games[chat_id]
     
@@ -708,22 +707,26 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id
-    _, should_lose = check_game_limits(user_id)  # ← Получаем флаг проигрыша
+    _, can_win = check_game_limits(user_id)
 
     bot_move = None
-    if not should_lose:
-        # Бот пытается выиграть или заблокировать
+    if can_win:
+        # Бот играет честно: сначала атакует, потом защищается
         bot_move = find_winning_move(board, 'O')
         if bot_move is None:
             bot_move = find_winning_move(board, 'X')
-
+    else:
+        # Бот намеренно проигрывает: ищет ход, который даст победу игроку
+        bot_move = find_losing_move(board, 'X')
+    
+    # Если не нашли ход — выбираем случайно
     if bot_move is None:
         bot_move = random.choice(empty_cells)
 
     board[bot_move] = 'O'
 
-    # Проверка победы бота (только если не должен проиграть)
-    if not should_lose and check_win(board, 'O'):
+    # Проверка победы бота (только если он играет честно)
+    if can_win and check_win(board, 'O'):
         result_text = "🤖 Бот победил! Попробуй ещё раз!"
         del games[chat_id]
         await query.edit_message_text(text=result_text, reply_markup=None)
