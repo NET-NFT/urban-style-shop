@@ -696,7 +696,7 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
         # ЗАПИСЫВАЕМ ИГРУ В ИСТОРИЮ
         user_id = update.effective_user.id
-        user_game_history[user_id].append(time.time())
+        user_game_stats[user_id]["games"].append(time.time())
     
         await query.edit_message_text(text=result_text, reply_markup=None)
         return
