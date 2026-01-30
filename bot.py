@@ -736,7 +736,8 @@ async def ttt_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if check_draw(board):
         result_text = "🤝 Ничья!"
         del games[chat_id]
-        user_game_history[user_id].append(time.time())  # ← Записываем ничью
+        user_game_stats[user_id]["games"].append(time.time())
+    
         await query.edit_message_text(text=result_text, reply_markup=None)
         return
 
