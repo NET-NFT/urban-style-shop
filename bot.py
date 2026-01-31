@@ -16,6 +16,13 @@ from telegram.ext import (
     filters
 )
 
+# === Supabase ===
+from supabase import create_client
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL else None
+
 # === Настройки ===
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
@@ -82,6 +89,16 @@ def generate_promo():
     code = "WIN" + str(random.randint(1000, 9999))
     active_promocodes.add(code)  # Сохраняем как активный
     return code
+
+def load_active_promos():
+    if not supabase:
+        return set()
+    response = supabase.table("used_promos").select("code").execute()
+    used = {row["code"] for row in response.data}
+    
+    # Генерируем ВСЕ возможные промокоды (например, WIN1000-WIN9999)
+    all_promos = {f"WIN{i}" for i in range(1000, 10000)}
+    return all_promos - used
 
 # === Защита от спама ===
 async def rate_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -598,19 +615,58 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
         await update.message.reply_text("❌ Ошибка оплаты: сумма не совпадает. Свяжитесь с поддержкой.")
         return
 
-    # === Обработка заказа ===
-    if user_id in user_carts:
-        del user_carts[user_id]
+    user = update.effective_user
+    user_id = context.user_data.get('session_user_id', user.id)
     
-    # Деактивируем промокод после использования
-    if context.user_data.get('promo') in active_promocodes:
-        active_promocodes.remove(context.user_data['promo'])
-        context.user_data.pop('promo', None)
+    # === Сохраняем в Supabase ===
+    if supabase:
+        # 1. Сохраняем пользователя
+        supabase.table("customers").upsert({
+            "id": user_id,
+            "username": user.username,
+            "first_name": user.first_name
+        }).execute()
 
-    username = user.username or f"id{user.id}"
+        # 2. Сохраняем заказ
+        cart_items = []
+        for pid, qty in user_carts.get(user_id, {}).items():
+            product = next((p for p in PRODUCTS if p["id"] == pid), None)
+            if product:
+                cart_items.append({
+                    "id": product["id"],
+                    "name": product["name"],
+                    "qty": qty,
+                    "price": product["price_rub"]
+                })
+
+        promo_used = context.user_data.get('promo')
+        if promo_used in active_promocodes:
+            # Сохраняем промокод как использованный
+            supabase.table("used_promos").insert({
+                "code": promo_used,
+                "used_by": user_id
+            }).execute()
+            active_promocodes.discard(promo_used)
+
+        supabase.table("orders").insert({
+            "customer_id": user_id,
+            "amount_rub": payment.total_amount // 100,
+            "items": cart_items,
+            "promo_used": promo_used
+        }).execute()
+
+    # Удаляем корзину
+    user_carts.pop(user_id, None)
+    context.user_data.pop('promo', None)
+
+    await update.message.reply_text("🎉 Спасибо за заказ!")
+
+    # Формируем username для отображения
+    username = f"@{user.username}" if user.username else f"id{user.id}"
+
     await context.bot.send_message(
         chat_id=ADMIN_CHAT_ID,
-        text=f"✅ *Новый заказ!* \nПользователь: @{user.username}\nСумма: {payment.total_amount // 100} ₽",
+        text=f"✅ *Новый заказ!* \nПользователь: {username}\nСумма: {payment.total_amount // 100} ₽",
         parse_mode="Markdown"
     )
     await update.message.reply_text("🎉 Спасибо за заказ! Менеджер свяжется с вами.")
@@ -886,6 +942,11 @@ async def join_ttt_game(update: Update, context: ContextTypes.DEFAULT_TYPE, game
 
 # === Запуск ===
 if __name__ == "__main__":
+    # Восстанавливаем активные промокоды из Supabase
+    if supabase:
+        active_promocodes = load_active_promos()
+        logger.info(f"Загружено {len(active_promocodes)} активных промокодов")
+        
     app = Application.builder().token(BOT_TOKEN).build()
 
     # Регистрация обработчиков
